@@ -1,0 +1,38 @@
+# Environment variables
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Build Artifacts
+node_modules
+build
+coverage
+dist
+*.local
+*.tsbuildinfo
+bundle-visualizer.html
+
+# Temp directories
+archived/
+temp/
+.temp/
+
+# Editor directories and files
+!.vscode/extensions.json
+.DS_Store
+
+# Roo / Claude Code symlinks (auto-generated from AGENTS.md)
+.roo
+CLAUDE.md
+
+# Agent research / planning files
+.agents/plans
+.agents/scratch
+.agents/settings.local.json
+.claude/plans
+.claude/scratch
+.claude/settings.local.json
+

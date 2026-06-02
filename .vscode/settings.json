@@ -1,0 +1,10 @@
+{
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.detectIndentation": false,
+	"editor.formatOnSave": true,
+	"editor.tabSize": 4,
+	"files.insertFinalNewline": true,
+	"[typescriptreact]": {
+		"js/ts.preferences.quoteStyle": "double"
+	}
+}

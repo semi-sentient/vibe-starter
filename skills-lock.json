@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "skills": {
+    "commit": {
+      "source": "sitevue/sitevue.skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/commit/SKILL.md",
+      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "grill-me": {
+      "source": "sitevue/sitevue.skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/grill-me/SKILL.md",
+      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "grill-with-docs": {
+      "source": "sitevue/sitevue.skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/grill-with-docs/SKILL.md",
+      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "handoff": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/handoff/SKILL.md",
+      "computedHash": "1a78d774f8a59db5daa6e65e20a6596872fa8cde769f9a6e3a09b678dd5ae8cc"
+    },
+    "prd-to-plan": {
+      "source": "sitevue/sitevue.skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/prd-to-plan/SKILL.md",
+      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "prototype": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/prototype/SKILL.md",
+      "computedHash": "e4d0c8f8cb3fc096ee99405a15491da466545cf4a3694bee5a0c9db2fa621a43"
+    },
+    "run-plan": {
+      "source": "sitevue/sitevue.skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/run-plan/SKILL.md",
+      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tdd": {
+      "source": "sitevue/sitevue.skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/tdd/SKILL.md",
+      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "write-a-prd": {
+      "source": "sitevue/sitevue.skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/write-a-prd/SKILL.md",
+      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}
