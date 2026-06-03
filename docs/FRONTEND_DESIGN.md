@@ -246,7 +246,7 @@ A specific project that needs offline support has to add it manually. Acceptable
 Without an error boundary, a single uncaught error during render produces a white screen. For a non-engineer's app, the white screen *is* the failure mode — no recovery, no diagnosis, no support path. The error boundary catches the error, displays a user-friendly message, and (in development) shows the stack trace.
 
 ```tsx
-// Simplified shape; real implementation in src/components/ErrorBoundary.tsx
+// Simplified shape; real implementation in src/web/components/ErrorBoundary.tsx
 <ErrorBoundary fallback={<ErrorPage />}>
   <App />
 </ErrorBoundary>

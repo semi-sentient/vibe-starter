@@ -24,9 +24,8 @@ temp/
 !.vscode/extensions.json
 .DS_Store
 
-# Roo / Claude Code symlinks (auto-generated from AGENTS.md)
+# Roo symlink (auto-generated from AGENTS.md)
 .roo
-CLAUDE.md
 
 # Agent research / planning files
 .agents/plans

@@ -159,27 +159,25 @@ TDD inverts the test-slop dynamic. Tests written *before* implementation drive t
 
 ### Concrete patterns
 
-**Backend integration tests** call Hono's `app.fetch(request)` directly — no HTTP, no mocking:
+**Backend integration tests** use the `createTestServer()` helper that wraps Hono's `app.request()` — no HTTP, no mocking:
 
 ```typescript
-import { app } from '../src/server/app';
-import { setupTestDb, teardownTestDb } from './helpers';
+import { createTestServer } from './helpers';
+import { resetDb } from './helpers';
 
 describe('GET /api/orders', () => {
-  beforeEach(setupTestDb);
-  afterEach(teardownTestDb);
+  beforeEach(resetDb);
 
   it('returns only the orders owned by the requesting customer', async () => {
-    const customerA = await seedUser({ email: 'a@example.com', role: 'user' });
-    const customerB = await seedUser({ email: 'b@example.com', role: 'user' });
-    await seedOrder({ userId: customerA.id, description: 'Intro session' });
-    await seedOrder({ userId: customerB.id, description: 'Follow-up session' });
+    const customerA = await createUser({ email: 'a@example.com', role: 'user' });
+    const customerB = await createUser({ email: 'b@example.com', role: 'user' });
+    await createOrder({ userId: customerA.id, description: 'Intro session' });
+    await createOrder({ userId: customerB.id, description: 'Follow-up session' });
 
-    const res = await app.fetch(
-      new Request('http://test/api/orders', {
-        headers: { Cookie: await loginAs({ userId: customerA.id, role: 'user' }) },
-      })
-    );
+    const server = createTestServer();
+    const res = await server.request('/api/orders', {
+      headers: { Cookie: await loginAs({ userId: customerA.id, role: 'user' }) },
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -197,7 +195,7 @@ This test exercises the real Hono router, real auth middleware, real Drizzle que
 import { render, screen } from '@testing-library/react';
 import { server } from './msw-server';
 import { http, HttpResponse } from 'msw';
-import { OrdersList } from '../src/components/OrdersList';
+import { OrdersList } from '../src/web/components/OrdersList';
 
 it('shows the orders returned by the API', async () => {
   server.use(
@@ -217,7 +215,7 @@ MSW intercepts at the network layer; the same handlers can power offline develop
 
 - Write tests for: (a) any new access-control rule, (b) any business logic that doesn't reduce to type-checking, (c) any bug you've fixed (regression test).
 - Do NOT write tests for: (a) UI rendering, (b) trivial getters/setters, (c) anything to satisfy a coverage threshold.
-- Tests are colocated with source (`Button.tsx` + `Button.test.tsx`). No separate `__tests__` tree.
+- Co-locate route/component tests with their source by default (`Button.tsx` + `Button.test.tsx`), but keep a `src/server/__tests__/` tree for cross-cutting invariants (access-control, full auth flow).
 - For any new feature, read `tdd` skill and follow red-green-refactor.
 
 ### Alternatives considered
@@ -383,7 +381,7 @@ The starter ships a 7-section README:
 
 **The `auth` skill** ships pre-installed (the only skill authored specifically for this starter and shipped upfront). Other skills accumulate reactively as patterns recur.
 
-**The bundled skills pipeline** ([`semi-sentient/skills-workflow`](https://github.com/semi-sentient/skills-workflow)) ships pre-installed. The full pipeline is bundled — `grill-with-docs`, `write-a-prd`, `prd-to-plan`, `run-plan`, plus the supporting `tdd` and `commit` — so the builder makes zero decisions about which skills to install. The ideal workflow is `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan`; `tdd` and `commit` are invoked automatically by the orchestrating skills and never directly. New users can shortcut by invoking `write-a-prd` first — it auto-invokes `grill-with-docs` if no grilling session has run.
+**The bundled skills pipeline** ([`semi-sentient/skills-workflow`](https://github.com/semi-sentient/skills-workflow)) ships pre-installed. The full pipeline is bundled — `grill-with-docs`, `grill-me`, `write-a-prd`, `prd-to-plan`, `run-plan`, plus the supporting `tdd` and `commit` — so the builder makes zero decisions about which skills to install. The ideal workflow is `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan`; `tdd` and `commit` are invoked automatically by the orchestrating skills and never directly. New users can shortcut by invoking `write-a-prd` first — it auto-invokes `grill-with-docs` if no grilling session has run.
 
 ### Why one canonical file
 
@@ -447,6 +445,7 @@ Pre-installed skills:
 | Skill | Role |
 |---|---|
 | `grill-with-docs` | Stress-tests an idea against the existing domain model, sharpening terminology and updating `CONTEXT.md` / ADRs inline. Entry point for non-trivial features. |
+| `grill-me` | Adversarial grilling of a plan/design without the doc-update step; the lighter sibling of `grill-with-docs`. |
 | `write-a-prd` | Captures the resolved design as a PRD. Auto-invokes `grill-with-docs` if no grilling session has run, so it's also a valid entry point for users who want a simpler flow. |
 | `prd-to-plan` | Breaks the PRD into tracer-bullet phases with confidence-scored acceptance criteria. |
 | `run-plan` | Executes the plan in a fresh conversation by delegating phases to specialized sub-agents. |

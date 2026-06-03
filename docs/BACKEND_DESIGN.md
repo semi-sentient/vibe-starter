@@ -17,7 +17,7 @@ This document covers the backend stack. For project-level decisions, see [`PROJE
 | Auth | **Magic-link via Resend** | Username/password, OAuth-only, Auth0/Clerk |
 | Session storage | **Postgres `sessions` table** | Redis, JWT, signed cookies |
 | CSRF protection | **Origin header check + `SameSite=Lax` cookies** | Double-submit cookie, CSRF token middleware |
-| Rate limiting | **Postgres-backed sliding window on auth endpoints** | Redis token bucket, in-memory counter |
+| Rate limiting | **Postgres-backed fixed window on auth endpoints** | Redis token bucket, in-memory counter |
 | Tenancy | **Single-tenant; ownership rule (`userId` filter) on user-owned rows** | Multi-tenant `tenantId` FK, schema-per-tenant |
 | Roles / RBAC | **Two roles (`admin`/`user`) + `requireRole()` middleware** | Casbin, OPA, ad-hoc checks |
 | Payments | **Stripe (hosted Checkout + webhooks)** | PayPal, Lemon Squeezy / Paddle (MoR), Square |
@@ -103,7 +103,7 @@ export type AppType = typeof app;  // <-- exported for the RPC client
 
 ```typescript
 import { hc } from 'hono/client';
-import type { AppType } from '../server/app';
+import type { AppType } from '../../server/app';
 
 const api = hc<AppType>('/');
 
@@ -386,13 +386,13 @@ sequenceDiagram
   API->>API: Validate code, expiry, attempts
   API->>DB: Upsert users(email) — auto-create on first login
   API->>API: Set role = admin if email in ADMIN_EMAILS, else user
-  API->>DB: Insert sessions(userId, sid, expiresAt)
+  API->>DB: Insert sessions(userId, id, expiresAt)
   API-->>Web: Set-Cookie: sid=<session>
   Web-->>User: Logged in
 
   User->>Web: Visit /dashboard
   Web->>API: GET /api/orders  (Cookie: sid)
-  API->>DB: Lookup sessions(sid) → user, role
+  API->>DB: Lookup sessions(id) → user, role
   API->>API: If role != admin, filter query by userId = current user
   API->>DB: SELECT orders WHERE user_id = $1
   API-->>Web: Orders (typed, owner-scoped)
@@ -419,7 +419,7 @@ const [user] = await db
   .returning();
 ```
 
-**3. Session storage in Postgres.** Sessions are rows in a `sessions` table with `(sid, user_id, expires_at)` columns and a 24-hour TTL with sliding refresh on each request.
+**3. Session storage in Postgres.** Sessions are rows in a `sessions` table with `(id, user_id, expires_at)` columns and a 24-hour TTL with sliding refresh on each request.
 
 Reasoning: rejecting JWTs because they cannot be revoked without an external blacklist (which defeats the point); rejecting Redis because we don't ship Redis by default. Postgres sessions are simple, performant at our scale, and survive a reboot.
 
@@ -466,7 +466,7 @@ const rows = await db
 
 Reasoning: `SameSite=Lax` blocks the common CSRF vectors automatically. The origin check is defense-in-depth for the remaining cases (legacy form submissions, browser edge cases) without the bookkeeping of CSRF tokens. Adequate for same-site cookie auth; revisit if the API ever needs to accept cookie-authenticated requests from a different origin. (The Stripe webhook route is exempt — it is server-to-server, authenticated by signature, not by cookie; see Payments.)
 
-**7. Rate limiting.** Auth endpoints (magic-link request, code verify) are rate-limited via a Postgres-backed sliding-window counter keyed by `(ip, email)`. Defaults: 5 requests per 10 minutes per key, configurable via env. The same `rateLimit({ key, limit, window })` middleware can be mounted on any other endpoint that needs it.
+**7. Rate limiting.** Auth endpoints (magic-link request, code verify) are rate-limited via a Postgres-backed fixed-window counter keyed by `(ip, email)`. Defaults: 5 requests per 10 minutes per key, configurable via env. The same `rateLimit({ key, limit, window })` middleware can be mounted on any other endpoint that needs it.
 
 The canonical example is a **public, unauthenticated endpoint that sends email** — e.g. a contact/inquiry form (`POST /api/contact`). Left open, it's a spam-relay and inbox-flood vector, so mount `rateLimit()` (keyed by IP) on it and pair it with a hidden honeypot field that legitimate users never fill. The starter doesn't ship a contact endpoint (what it collects and where it routes is project-specific), but this is exactly the safe composition the first-feature tutorial walks through, on top of the shipped rate limiter and the `email/resend` wrapper.
 
