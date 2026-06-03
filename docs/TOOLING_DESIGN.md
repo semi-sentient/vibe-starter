@@ -169,27 +169,27 @@ describe('GET /api/orders', () => {
   beforeEach(setupTestDb);
   afterEach(teardownTestDb);
 
-  it('returns only the orders owned by the requesting parent', async () => {
-    const parentA = await seedUser({ email: 'a@example.com', role: 'user' });
-    const parentB = await seedUser({ email: 'b@example.com', role: 'user' });
-    await seedOrder({ userId: parentA.id, description: 'Pottery class' });
-    await seedOrder({ userId: parentB.id, description: 'Painting class' });
+  it('returns only the orders owned by the requesting customer', async () => {
+    const customerA = await seedUser({ email: 'a@example.com', role: 'user' });
+    const customerB = await seedUser({ email: 'b@example.com', role: 'user' });
+    await seedOrder({ userId: customerA.id, description: 'Intro session' });
+    await seedOrder({ userId: customerB.id, description: 'Follow-up session' });
 
     const res = await app.fetch(
       new Request('http://test/api/orders', {
-        headers: { Cookie: await loginAs({ userId: parentA.id, role: 'user' }) },
+        headers: { Cookie: await loginAs({ userId: customerA.id, role: 'user' }) },
       })
     );
 
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.orders).toHaveLength(1);
-    expect(body.orders[0].description).toBe('Pottery class');
+    expect(body.orders[0].description).toBe('Intro session');
   });
 });
 ```
 
-This test exercises the real Hono router, real auth middleware, real Drizzle queries, real Postgres — but in-process and fast (no HTTP overhead). Access-control bugs — a parent seeing another parent's order — are nearly impossible to write without the test catching them. This is the access-control anchor test the "Ready for real users?" checklist refers to (see `PROJECT_DESIGN.md`).
+This test exercises the real Hono router, real auth middleware, real Drizzle queries, real Postgres — but in-process and fast (no HTTP overhead). Access-control bugs — a customer seeing another customer's order — are nearly impossible to write without the test catching them. This is the access-control anchor test the "Ready for real users?" checklist refers to (see `PROJECT_DESIGN.md`).
 
 **Component tests** use MSW to mock API responses:
 
@@ -202,12 +202,12 @@ import { OrdersList } from '../src/components/OrdersList';
 it('shows the orders returned by the API', async () => {
   server.use(
     http.get('/api/orders', () => HttpResponse.json({
-      orders: [{ id: 1, description: 'Pottery class', status: 'paid' }],
+      orders: [{ id: 1, description: 'Intro session', status: 'paid' }],
     }))
   );
 
   render(<OrdersList />);
-  expect(await screen.findByText('Pottery class')).toBeInTheDocument();
+  expect(await screen.findByText('Intro session')).toBeInTheDocument();
 });
 ```
 

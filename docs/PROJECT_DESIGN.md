@@ -31,7 +31,7 @@ This document captures the **project-level** decisions: audience, scope, philoso
 
 Vibe Starter is built for **a solo (or tiny-team) non-engineer building a side project or small business with an AI coding agent** (Claude Code, Cursor, Roo Code, etc.) — and for the developers (like the repo owner) who set it up for such people.
 
-The driving first use case is concrete: an **arts & crafts education service for kids aged 5–12**, with a **parent portal** where parents sign up and register their kids for classes, paying via Stripe. The starter is general-purpose — this is just the first of possibly several side projects — but the arts-&-crafts portal is the running example throughout these docs because it exercises the parts that matter: self-signup, access control over user-owned data, and real payments.
+The starter is general-purpose. A representative example used throughout these docs is **a small business where customers sign up and pay for something — class sign-ups, appointment bookings, a paid community.** It's just one shape among many, but it's a useful running example because it exercises the parts that matter: self-signup, access control over user-owned data, and real payments.
 
 The builder cannot reliably debug a stack trace and may have no engineering review. They are **carried by their AI agent operating inside the starter's guardrails**: strict types, a baked-in access-control model, opinionated defaults, and a context file the agent reads on day one. The starter's job is to make the correct, maintainable path the path of least resistance — so that what gets shipped is something real users could trust with their data and their money.
 
@@ -49,7 +49,7 @@ We can fork later. `vibe-starter` is the maximalist version; if a lighter varian
 
 ### In scope
 
-- **Frontend:** A Vite + React + TypeScript SPA styled with **Tailwind CSS v4 + shadcn/ui** and design tokens as CSS variables. Mobile-responsive (parents are on phones). (See `FRONTEND_DESIGN.md`.)
+- **Frontend:** A Vite + React + TypeScript SPA styled with **Tailwind CSS v4 + shadcn/ui** and design tokens as CSS variables. Mobile-responsive (customers are often on phones). (See `FRONTEND_DESIGN.md`.)
 - **Backend:** A Hono API server with PostgreSQL persistence, **single-tenant magic-link authentication** with open self-signup, and an access-control model (`admin`/`user` roles + an ownership rule) baked in as a primitive. (See `BACKEND_DESIGN.md`.)
 - **Payments:** **Stripe** (Stripe-hosted Checkout by default; Billing for subscriptions), with webhooks as the source of truth for payment status. (See `BACKEND_DESIGN.md`.)
 - **Local development:** `docker compose up` brings up Postgres; the dev server runs frontend + backend concurrently.
@@ -85,7 +85,7 @@ The goal is an app that *could* be promoted to a real product: used by real cust
 Strict TypeScript, zero-warning ESLint, and `noUncheckedIndexedAccess` prevent classes of bugs at compile time. Without these, agents and non-engineers ship type-coerced code that fails at runtime in ways nobody catches before users do.
 
 **4. Access control is a primitive, not an exercise.**
-The auth scaffold ships in the starter: magic-link login, `admin`/`user` roles, and an ownership rule so **users see and edit only their own data**, with admin routes gated behind `requireRole('admin')`. A builder should *use* this scaffold, not invent it. The most likely high-severity failure mode — a parent reads or mutates another parent's child's registration because a query wasn't scoped to the current user, or a `user` reaches an admin-only route — is mitigated by making correct-by-default the path of least resistance.
+The auth scaffold ships in the starter: magic-link login, `admin`/`user` roles, and an ownership rule so **users see and edit only their own data**, with admin routes gated behind `requireRole('admin')`. A builder should *use* this scaffold, not invent it. The most likely high-severity failure mode — a customer reads or mutates another customer's order because a query wasn't scoped to the current user, or a `user` reaches an admin-only route — is mitigated by making correct-by-default the path of least resistance.
 
 **5. The agent is a first-class user.**
 The starter ships `AGENTS.md` with stack declarations, do/don't lists, and a build-and-verify protocol. Skills are referenced explicitly. The agent's context window is treated as a designed surface — not an afterthought. If an agent has to guess about the project, we have failed to write the docs.
@@ -119,7 +119,7 @@ flowchart LR
   Stripe([Stripe]) -->|"webhooks"| ProdApi
   ProdApi -->|"Checkout / Billing API"| Stripe
 
-  Browser([Parent / user]) --> ProdWeb
+  Browser([Customer / user]) --> ProdWeb
   Builder([Builder]) --> DevWeb
 
   GitHub[GitHub repo<br/>main branch] -->|push triggers| GHA[GitHub Actions CI]
@@ -200,11 +200,11 @@ The starter's README includes a one-paragraph note explaining this. Major releas
 
 ## Ready for real users?
 
-Before you launch to real customers — especially before you take real payments or handle children's data — run this short self-review. (For the *setup* that gets you to a live deployment — creating your Railway / Resend / Stripe accounts, verifying a sending domain, wiring the Stripe webhook, connecting a custom domain — follow `DEPLOY.md`; this checklist is the *gate* you run once that's done.) It's your own pre-launch checklist, not an external review. If anything below is unchecked, you're not ready yet. (A `LAUNCH_CHECKLIST.md` may ship in the repo as a copy of this list to tick through.)
+Before you launch to real customers — especially before you take real payments — run this short self-review. (For the *setup* that gets you to a live deployment — creating your Railway / Resend / Stripe accounts, verifying a sending domain, wiring the Stripe webhook, connecting a custom domain — follow `DEPLOY.md`; this checklist is the *gate* you run once that's done.) It's your own pre-launch checklist, not an external review. If anything below is unchecked, you're not ready yet. (A `LAUNCH_CHECKLIST.md` may ship in the repo as a copy of this list to tick through.)
 
 **Access control is intact.**
 - Admin-only routes are gated with `requireRole('admin')`.
-- Users can only see and edit their own rows — queries for user-owned data filter by the current user (no IDOR; a parent can never reach another parent's child's registration).
+- Users can only see and edit their own rows — queries for user-owned data filter by the current user (no IDOR; a customer can never reach another customer's order).
 - The access-control anchor test passes. (See `BACKEND_DESIGN.md`.)
 
 **Secrets are safe.**
@@ -228,14 +228,13 @@ Before you launch to real customers — especially before you take real payments
 - Structured logging is on and you know how to find errors in the Railway logs.
 
 **It works on a phone.**
-- A quick pass on a real phone or device emulator — parents will mostly be on mobile.
+- A quick pass on a real phone or device emulator — customers will mostly be on mobile.
 
-**Legal & safety basics (you're handling kids' data).**
+**Legal & safety basics.**
 - A privacy policy and terms of service are published.
-- You get **parental consent** before collecting anything about a child.
-- You collect the **minimum** data about kids that you actually need, and delete what you don't.
+- **If your app handles children's or other sensitive personal data:** get the appropriate consent (e.g., **parental consent** before collecting anything about a child) and collect the **minimum** data you actually need, deleting what you don't.
 
-> This is a COPPA-style "minimize and get parental consent" guideline, not legal advice. Handling children's personal data carries real legal obligations that vary by jurisdiction — if you're unsure, consult a professional before launch.
+> The children's-data note above is a COPPA-style "minimize and get parental consent" guideline, not legal advice. Handling children's or other sensitive personal data carries real legal obligations that vary by jurisdiction — if you're unsure, consult a professional before launch.
 
 ---
 
@@ -246,5 +245,3 @@ Items deliberately deferred but worth flagging:
 - **First-feature tutorial content.** A concrete end-to-end walkthrough — building a **contact form** (a public `POST /api/contact` that validates with zod, mounts the shipped `rateLimit()` middleware plus a hidden honeypot, and emails a configured `CONTACT_EMAIL` via the Resend wrapper; optionally persisting submissions to a `contact_messages` table) — is on the pre-launch list. It's a deliberately strong first feature: nearly every project wants one, and it composes four shipped primitives (Resend, the rate limiter, zod, shadcn `Form`) while teaching the public-endpoint abuse-protection pattern. It must be written and tested end-to-end with a real agent before public release.
 - **Versioning strategy for downstream projects.** `vibe-starter` versions itself, but there's no mechanism for an existing project to know which template version it started from. Acceptable for now (template-snapshot semantics, documented), but worth revisiting if cross-project maintenance becomes a real burden.
 - **Sales tax on payments.** Stripe Checkout handles the charge, but tax remittance is on you. When this becomes burdensome, revisit Stripe Tax or a merchant-of-record alternative (Lemon Squeezy / Paddle). See `BACKEND_DESIGN.md`.
-</content>
-</invoke>

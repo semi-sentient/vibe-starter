@@ -1,6 +1,6 @@
 # Vibe Starter — Frontend Design
 
-> Vite + React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui. Chosen for a modern, polished default aesthetic (it matters when you're building a consumer-facing product like a kids' arts brand), copy-in components you own and can restyle, strong agent training data, and no proprietary or non-redistributable license — important for a public, MIT-licensed starter.
+> Vite + React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui. Chosen for a modern, polished default aesthetic (it matters when you're building a consumer-facing product where customers form a snap judgment about whether the service looks trustworthy), copy-in components you own and can restyle, strong agent training data, and no proprietary or non-redistributable license — important for a public, MIT-licensed starter.
 
 This document covers the frontend stack. For project-level decisions (audience, scope, distribution), see [`PROJECT_DESIGN.md`](./PROJECT_DESIGN.md). For backend, see [`BACKEND_DESIGN.md`](./BACKEND_DESIGN.md). For tooling (TypeScript, lint, test), see [`TOOLING_DESIGN.md`](./TOOLING_DESIGN.md).
 
@@ -52,7 +52,7 @@ We may revisit Next.js if a marketing-site shape (where SEO and SSR matter mater
 
 ### Trade-offs
 
-We give up server-side rendering by default. For an app behind a login — like the parent portal in the arts-&-crafts example — this doesn't matter (SEO is irrelevant; auth gates everything). For public marketing pages, we accept the trade — a Vite SPA that pre-renders public routes with a plugin like `vite-plugin-ssg` covers the 80% case without a Next.js runtime.
+We give up server-side rendering by default. For an app behind a login — like the customer-facing app in the representative bookings example — this doesn't matter (SEO is irrelevant; auth gates everything). For public marketing pages, we accept the trade — a Vite SPA that pre-renders public routes with a plugin like `vite-plugin-ssg` covers the 80% case without a Next.js runtime.
 
 ### When to revisit
 
@@ -92,7 +92,7 @@ This is a high-stakes decision because it shapes every UI a builder writes. shad
 
 ### Why shadcn/ui + Tailwind
 
-**1. Excellent default aesthetic.** shadcn's components look modern and polished out of the box — clean spacing, sensible typography, tasteful defaults. For a consumer-facing product (the running example is an arts-&-crafts brand for kids, where parents form a snap judgment about whether the service looks trustworthy), this matters more than for an app behind a corporate login. You get a credible look on day one without a designer.
+**1. Excellent default aesthetic.** shadcn's components look modern and polished out of the box — clean spacing, sensible typography, tasteful defaults. For a consumer-facing product (in the representative example, a customer forms a snap judgment about whether the service looks trustworthy before they sign up and pay), this matters more than for an app behind a corporate login. You get a credible look on day one without a designer.
 
 **2. You own the components.** Because shadcn copies source into your repo rather than hiding it behind a package, a builder (or their agent) can restyle a `Button` or `Dialog` directly — no fighting a library's theming API, no waiting on upstream. This is ideal when the whole point is letting someone reshape the app to their brand.
 
@@ -134,7 +134,7 @@ Reconsider if the enforcement mitigations prove insufficient in practice — if,
 
 ## Lists & tables
 
-Most side-project screens need simple lists or cards — a parent's list of registered classes, a grid of upcoming arts-&-crafts projects — not a spreadsheet. Build these with plain components, or with shadcn's `Table` for straightforward tabular data.
+Most side-project screens need simple lists or cards — a customer's list of bookings, a grid of upcoming sessions — not a spreadsheet. Build these with plain components, or with shadcn's `Table` for straightforward tabular data.
 
 If you ever need real table mechanics (column sorting, filtering, pagination) over a larger dataset, the documented escape hatch is **TanStack Table behind a single `<DataTable>` wrapper** — a headless table engine rendered with shadcn's `Table` primitives, pinned to one wrapper component so every table that needs it shares the same implementation instead of each prototype reinventing it. There is no proprietary grid in this starter. Don't reach for `<DataTable>` until the simple list genuinely stops scaling.
 
@@ -161,7 +161,7 @@ Keeping the theme inline (rather than in a published, versioned package) is the 
 - A shared package would require a registry or git-pinned dependency, a versioning strategy across the package and its consumers, and release tooling — overhead with no payoff for a single app.
 - Inline tokens let a builder edit branding freely (try a warmer palette, round the corners more) without coordinating with a central package owner.
 
-The starter ships a tasteful default — a warm, playful palette suits the kids'-arts example — kept neutral enough that the next project can re-skin it by editing the CSS variables.
+The starter ships a tasteful default — a clean, friendly default palette — kept neutral enough that the next project can re-skin it by editing the CSS variables.
 
 ### Trade-off
 
@@ -181,12 +181,12 @@ Payment UI uses **Stripe-hosted Checkout** (a redirect), not an embedded card fo
 
 ### Why
 
-When a parent enrolls a kid in a class and pays, the frontend's job is small: call the backend to create a Checkout Session, then redirect the browser to Stripe's hosted payment page. Stripe renders the card form, handles the payment, and redirects back to a success/cancel URL. Card data never touches our frontend (or backend), which keeps the PCI surface minimal and the frontend code thin.
+When a customer pays for something — a booking, a session, a membership — the frontend's job is small: call the backend to create a Checkout Session, then redirect the browser to Stripe's hosted payment page. Stripe renders the card form, handles the payment, and redirects back to a success/cancel URL. Card data never touches our frontend (or backend), which keeps the PCI surface minimal and the frontend code thin.
 
 ### Shape
 
 - The only client-side Stripe config is **`VITE_STRIPE_PUBLISHABLE_KEY`** (publishable keys are safe to expose in the browser bundle — see the `VITE_*` env rules in [`BACKEND_DESIGN.md`](./BACKEND_DESIGN.md)). It's validated in the client env schema.
-- A "Pay / Enroll" action calls the backend, which creates the Checkout Session and returns its URL; the client navigates to it.
+- A "Pay / Checkout" action calls the backend, which creates the Checkout Session and returns its URL; the client navigates to it.
 - **The client redirect is never trusted as proof of payment.** Payment status is confirmed server-side via Stripe webhooks. The success page should treat itself as "payment likely succeeded, confirming…" and reflect the authoritative status the backend records once the webhook lands.
 
 If an embedded card form is ever required (rare), **Stripe Elements** (`@stripe/react-stripe-js`) is the escape hatch. For the full server side — Checkout Session creation, the `POST /api/stripe/webhook` route, signature verification, the generic `orders` schema, and the `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` env vars — see [`BACKEND_DESIGN.md`](./BACKEND_DESIGN.md).
@@ -219,7 +219,7 @@ These are smaller decisions that the agent would otherwise make per-file. Standa
 
 ### Why
 
-Consumer apps are used on phones first — in the arts-&-crafts example, a parent signs up and registers a kid from their phone between other things. Responsive layout is not optional. Tailwind's responsive prefixes make it nearly free: a single utility string covers multiple breakpoints.
+Consumer apps are used on phones first — in the representative example, a customer signs up and books a service from their phone between other things. Responsive layout is not optional. Tailwind's responsive prefixes make it nearly free: a single utility string covers multiple breakpoints.
 
 ```tsx
 <div className="p-4 md:p-8 flex flex-col md:flex-row">

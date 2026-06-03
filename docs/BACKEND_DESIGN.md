@@ -59,20 +59,20 @@ import express from 'express';
 const app = express();
 app.use(express.json());
 
-app.post('/api/enrollments', (req, res) => {
+app.post('/api/bookings', (req, res) => {
   // req.body is `any`. We don't know its shape.
-  const { classId, childName } = req.body;
+  const { note, serviceId } = req.body;
 
   // Manual validation:
-  if (typeof classId !== 'number') {
-    return res.status(400).json({ error: 'classId required' });
+  if (typeof serviceId !== 'number') {
+    return res.status(400).json({ error: 'serviceId required' });
   }
-  if (typeof childName !== 'string' || childName.length === 0) {
-    return res.status(400).json({ error: 'childName required' });
+  if (typeof note !== 'string' || note.length === 0) {
+    return res.status(400).json({ error: 'note required' });
   }
 
   // ...persist, then respond
-  res.json({ id: 1, classId, childName });
+  res.json({ id: 1, note, serviceId });
 });
 ```
 
@@ -83,17 +83,17 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
-const enrollmentSchema = z.object({
-  childName: z.string().min(1),
-  classId: z.number().int().positive(),
+const bookingSchema = z.object({
+  note: z.string().min(1),
+  serviceId: z.number().int().positive(),
 });
 
 const app = new Hono()
-  .post('/api/enrollments', zValidator('json', enrollmentSchema), (c) => {
-    const { childName, classId } = c.req.valid('json');
-    // ^ fully typed: { childName: string; classId: number }
+  .post('/api/bookings', zValidator('json', bookingSchema), (c) => {
+    const { note, serviceId } = c.req.valid('json');
+    // ^ fully typed: { note: string; serviceId: number }
     // Validation failures are auto-returned as 400 with structured error.
-    return c.json({ childName, classId, id: 1 });
+    return c.json({ id: 1, note, serviceId });
   });
 
 export type AppType = typeof app;  // <-- exported for the RPC client
@@ -107,11 +107,11 @@ import type { AppType } from '../server/app';
 
 const api = hc<AppType>('/');
 
-// Typed end-to-end. TS errors if `classId` is missing or wrong shape.
-const res = await api.api.enrollments.$post({
-  json: { childName: 'Ada', classId: 7 },
+// Typed end-to-end. TS errors if `serviceId` is missing or wrong shape.
+const res = await api.api.bookings.$post({
+  json: { note: 'First-time visitor', serviceId: 7 },
 });
-const enrollment = await res.json(); // typed as { id: number; childName: string; classId: number }
+const booking = await res.json(); // typed as { id: number; note: string; serviceId: number }
 ```
 
 A field rename in the schema lights up red across the entire codebase — frontend and backend. This is the slop-prevention lever working as intended.
@@ -159,16 +159,16 @@ This section is long because the cost of getting it wrong is paid by every proje
 
 **1. Schema-as-code is the single highest-leverage agent-context lever.**
 
-Drizzle's schema is a TypeScript file. The agent reads it once and knows the shape of every table. Field names, types, constraints, foreign keys, defaults — all visible. (The `enrollments`/`classes` tables below are *illustrative* — the kind of thing a project adds; the starter itself ships only the generic tables listed under "Schema sketch" later.)
+Drizzle's schema is a TypeScript file. The agent reads it once and knows the shape of every table. Field names, types, constraints, foreign keys, defaults — all visible. (The `bookings`/`services` tables below are *illustrative* — the kind of thing a project adds; the starter itself ships only the generic tables listed under "Schema sketch" later.)
 
 ```typescript
 // src/db/schema.ts — schema is the single source of truth (illustrative tables)
-export const enrollments = pgTable('enrollments', {
+export const bookings = pgTable('bookings', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id),
-  classId: integer('class_id').notNull().references(() => classes.id),
-  childName: text('child_name').notNull(),
-  status: enrollmentStatusEnum('status').notNull().default('pending'),
+  serviceId: integer('service_id').notNull().references(() => services.id),
+  note: text('note').notNull(),
+  status: bookingStatusEnum('status').notNull().default('pending'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   version: integer('version').notNull().default(1), // for optimistic locking
 });
@@ -181,17 +181,17 @@ There is no equivalent in a Redis-only architecture. Schema in Redis is implicit
 **2. Type-safe queries from end to end.**
 
 ```typescript
-const myEnrollments = await db
+const myBookings = await db
   .select()
-  .from(enrollments)
+  .from(bookings)
   .where(and(
-    eq(enrollments.userId, currentUser.id),
-    eq(enrollments.status, 'paid')
+    eq(bookings.userId, currentUser.id),
+    eq(bookings.status, 'paid')
   ))
-  .orderBy(desc(enrollments.createdAt))
+  .orderBy(desc(bookings.createdAt))
   .limit(20);
 
-// myEnrollments: Enrollment[] — fully typed. Renaming `status` to `state`
+// myBookings: Booking[] — fully typed. Renaming `status` to `state`
 // in the schema lights up every query referencing it.
 ```
 
@@ -199,17 +199,17 @@ The Redis equivalent loses every typing step:
 
 ```typescript
 // First, you need to have manually maintained a secondary index.
-// Every write to enrollments must update this set; if you forget, queries silently
+// Every write to bookings must update this set; if you forget, queries silently
 // return stale results.
 const ids = await redis.zRange(
-  `enrollments:by_user:${userId}:paid`,
+  `bookings:by_user:${userId}:paid`,
   0, 19,
   { REV: true }
 );
 
 const result: any[] = [];
 for (const id of ids) {
-  const data = await redis.get(`enrollment:${id}`);
+  const data = await redis.get(`booking:${id}`);
   if (data) result.push(JSON.parse(data));
   // Plus: filter out rows whose status changed but the secondary
   // index wasn't updated yet. Hope you remembered.
@@ -224,9 +224,9 @@ The Redis path requires the builder to *invent* what Postgres provides for free:
 
 ```typescript
 await db.transaction(async (tx) => {
-  await tx.insert(enrollments).values({...});
+  await tx.insert(bookings).values({...});
   await tx.insert(audit).values({...});
-  await tx.update(classes).set({ seatsTaken: sql`seats_taken + 1` }).where(...);
+  await tx.update(services).set({ spotsTaken: sql`spots_taken + 1` }).where(...);
 });
 // All-or-nothing. Postgres handles concurrency.
 ```
@@ -236,8 +236,8 @@ Redis offers `MULTI/EXEC` and Lua scripts, both of which work but operate at the
 **4. Migrations are checked-in artifacts, replayable in any environment.**
 
 ```sql
--- src/db/migrations/0007_add_age_group_column.sql
-ALTER TABLE classes ADD COLUMN age_group text NOT NULL DEFAULT '5-8';
+-- src/db/migrations/0007_add_capacity_column.sql
+ALTER TABLE services ADD COLUMN capacity integer NOT NULL DEFAULT 10;
 ```
 
 Generated by `drizzle-kit generate` from a schema change. Committed to git. Replayed automatically on `npm run dev` (via the `predev` hook) and in CI. Every developer's database matches the schema; production matches the schema; staging matches the schema.
@@ -251,11 +251,11 @@ Redis has no equivalent. Schema changes are one-off scripts (`for await (const k
 
 **5. Relational queries — joins — without manual indexes.**
 
-"Show me all classes a given parent's children are enrolled in, where the class is full, with at least one unpaid enrollment."
+"Show me all services a given customer has booked, where the service is fully booked, with at least one unpaid booking."
 
 In Drizzle, this is one query with a couple of joins. In Redis, it requires either (a) hand-built secondary indexes for every access pattern (which you must maintain on every write), or (b) full scans (which don't scale even at prototype size).
 
-A Redis-only approach to relational data of this shape needs per-user sorted sets, per-class sorted sets, per-status sorted sets, dedup keys, and Lua scripts to atomically maintain index consistency. **That is exactly the kind of one-team knowledge that does not generalize to a starter consumed by non-engineers.** A vibe coder asking their agent to "filter by age group" is not going to invent the matching secondary index; they'll write a key scan, ship it, and watch it break at scale.
+A Redis-only approach to relational data of this shape needs per-user sorted sets, per-service sorted sets, per-status sorted sets, dedup keys, and Lua scripts to atomically maintain index consistency. **That is exactly the kind of one-team knowledge that does not generalize to a starter consumed by non-engineers.** A vibe coder asking their agent to "filter by date" is not going to invent the matching secondary index; they'll write a key scan, ship it, and watch it break at scale.
 
 **6. The agent is dramatically better at SQL than Redis.**
 
@@ -299,7 +299,7 @@ The "easy" Redis demo doesn't include: designing keyspaces around access pattern
 
 The "easy" Postgres demo includes: `CREATE TABLE`, `SELECT * FROM x WHERE y = z`. With Drizzle, the second part is autocompleted in TypeScript. The agent handles both.
 
-The asymmetry: **Redis is easy when your data is genuinely key-value with fixed access patterns.** Most side-project data isn't. Parents with children with enrollments with payments in classes is textbook relational data. Forcing it into Redis requires the manual reinvention of relational primitives.
+The asymmetry: **Redis is easy when your data is genuinely key-value with fixed access patterns.** Most side-project data isn't. Customers with bookings with payments against services is textbook relational data. Forcing it into Redis requires the manual reinvention of relational primitives.
 
 **"DynamoDB is more scalable / managed."**
 
@@ -361,7 +361,7 @@ Both produce safe code. Both have good migration stories. Either would work; Dri
 
 The starter ships a working **magic-link authentication** flow with **session-backed authorization**, **two roles** (`admin` / `user`), and an **ownership rule** for user-owned data, all as primitives. Builders use the scaffold; they do not invent it.
 
-This is a **single-tenant** app: one business, many user accounts (parents self-register and enroll their kids). There is no `tenantId`, no per-tenant isolation, and no cross-tenant model. The access-control surface that matters is simpler and sharper: *can this user touch this row, and can this user reach this route?*
+This is a **single-tenant** app: one business, many user accounts (customers self-register and pay for what they want). There is no `tenantId`, no per-tenant isolation, and no cross-tenant model. The access-control surface that matters is simpler and sharper: *can this user touch this row, and can this user reach this route?*
 
 ### Architecture
 
@@ -402,9 +402,9 @@ sequenceDiagram
 
 **1. Magic-link email auth.** No passwords. The user enters their email, receives a 6-digit code via Resend, and submits it. Codes expire after 10 minutes; failed attempts are rate-limited.
 
-Reasoning: passwords are a security liability and a UX cost. Magic links eliminate password storage, password reset flows, and "I forgot my password" support requests. This pattern is well-proven and works well for a consumer audience that just wants to sign up and enroll a kid.
+Reasoning: passwords are a security liability and a UX cost. Magic links eliminate password storage, password reset flows, and "I forgot my password" support requests. This pattern is well-proven and works well for a consumer audience that just wants to sign up and pay for something.
 
-**2. Open self-signup.** Anyone can request a magic-link code. On the first successful verify, a `user` account is auto-created — parents self-register, no invite required. The app is **not** invite-only; open signup is the default.
+**2. Open self-signup.** Anyone can request a magic-link code. On the first successful verify, a `user` account is auto-created — customers self-register, no invite required. The app is **not** invite-only; open signup is the default.
 
 ```typescript
 // On verify success:
@@ -460,7 +460,7 @@ const rows = await db
   );
 ```
 
-**The single most likely high-severity bug a vibe coder ships is broken access control / IDOR** — a user reading or mutating another user's data because a query wasn't scoped to the current user (e.g. a parent viewing another parent's child's registration by guessing an `id`), or a `user` reaching an `admin`-only route. This is the bug the starter most aggressively prevents, via two mechanisms: `requireRole('admin')` on admin routes, and the ownership rule on every user-owned query. The access-control anchor test (see Testing) exists specifically to keep this contract honest.
+**The single most likely high-severity bug a vibe coder ships is broken access control / IDOR** — a user reading or mutating another user's data because a query wasn't scoped to the current user (e.g. a customer viewing another customer's order by guessing an `id`), or a `user` reaching an `admin`-only route. This is the bug the starter most aggressively prevents, via two mechanisms: `requireRole('admin')` on admin routes, and the ownership rule on every user-owned query. The access-control anchor test (see Testing) exists specifically to keep this contract honest.
 
 **6. CSRF protection.** Session cookies use `SameSite=Lax`, `HttpOnly`, and `Secure` (in production). For non-GET requests, the API additionally checks that the `Origin` header matches the configured app origin.
 
@@ -474,7 +474,7 @@ Reasoning: without rate limiting, the magic-link request endpoint is an email-bo
 
 ### Optional escape hatch: multi-tenancy
 
-The starter is deliberately single-tenant, because the driving use case (and most side projects) is one business serving many individual users. **If you ever build a true multi-tenant SaaS** (one deployment serving many independent organizations, each with isolated data), the shape is well-known and you can graduate to it:
+The starter is deliberately single-tenant, because the representative use case (and most side projects) is one business serving many individual users. **If you ever build a true multi-tenant SaaS** (one deployment serving many independent organizations, each with isolated data), the shape is well-known and you can graduate to it:
 
 - Add a `tenants` table and a `tenantId` foreign key to every tenant-owned table.
 - Resolve the current `tenantId` from the session at request time.
@@ -514,7 +514,7 @@ This remains the **only** skill authored specifically for this starter and shipp
 
 ### Decision
 
-**Stripe** as the payment provider, integrated by default via **Stripe-hosted Checkout** (a redirect to Stripe's hosted payment page), with **webhooks as the source of truth** for payment status. The driving use case: parents pay to enroll their kids in classes.
+**Stripe** as the payment provider, integrated by default via **Stripe-hosted Checkout** (a redirect to Stripe's hosted payment page), with **webhooks as the source of truth** for payment status. The representative use case: a customer pays for something — a booking, a class seat, a membership.
 
 This section documents the *design*; it does not include a full implementation. The shape below is what the starter scaffolds and what the `auth`/payments conventions point the agent at.
 
@@ -527,7 +527,7 @@ This section documents the *design*; it does not include a full implementation. 
 
 ### Integration shape
 
-**Default: Stripe Checkout (hosted redirect).** The server creates a Checkout Session and redirects the parent to Stripe's hosted page; Stripe handles the card entry and confirmation, then redirects back to a success/cancel URL.
+**Default: Stripe Checkout (hosted redirect).** The server creates a Checkout Session and redirects the customer to Stripe's hosted page; Stripe handles the card entry and confirmation, then redirects back to a success/cancel URL.
 
 ```typescript
 // Sketch: create a Checkout Session for a caller-supplied line item, return its URL.
@@ -565,7 +565,7 @@ app.post('/api/checkout', requireAuth, async (c) => {
 });
 ```
 
-**Recurring memberships: Stripe Billing / subscriptions.** If a project sells a membership rather than a one-off class, use `mode: 'subscription'` and Stripe Billing; the `invoice.paid` webhook drives renewal state.
+**Recurring memberships: Stripe Billing / subscriptions.** If a project sells a membership rather than a one-off purchase, use `mode: 'subscription'` and Stripe Billing; the `invoice.paid` webhook drives renewal state.
 
 **Escape hatch: Stripe Elements** (`@stripe/react-stripe-js`) if an embedded card form is ever genuinely needed (custom checkout UX). This pulls card data closer to the app and raises the PCI bar, so it is the exception, not the default. See [`FRONTEND_DESIGN.md`](./FRONTEND_DESIGN.md) for the (minimal) frontend payment touchpoint.
 
@@ -633,9 +633,9 @@ export const orders = pgTable('orders', {
 });
 ```
 
-The `orders` rows are user-owned, so they obey the ownership rule: a parent sees only their own orders unless the caller is `admin`.
+The `orders` rows are user-owned, so they obey the ownership rule: a customer sees only their own orders unless the caller is `admin`.
 
-**No domain entity ships.** `createCheckoutSession` takes its line item from the caller, and the starter wires a single placeholder `'Sample item'` purchase so payments work on day one — you replace it with whatever you actually sell. When you have a domain entity (a class, a product, a booking), link it however suits the project: add a nullable foreign-key column to `orders` (e.g. `classId`), or stash the reference in `description` / Stripe `metadata`. The shipped table stays generic; the association is entirely yours.
+**No domain entity ships.** `createCheckoutSession` takes its line item from the caller, and the starter wires a single placeholder `'Sample item'` purchase so payments work on day one — you replace it with whatever you actually sell. When you have a domain entity (a service, a product, a booking), link it however suits the project: add a nullable foreign-key column to `orders` (e.g. `serviceId`), or stash the reference in `description` / Stripe `metadata`. The shipped table stays generic; the association is entirely yours.
 
 ### Env vars
 
@@ -681,7 +681,7 @@ Stripe webhooks need a publicly reachable URL: the Railway deployment provides t
 
 ### Decision
 
-**Resend** as the email provider, used for magic-link delivery (and any transactional email a project adds later, such as enrollment confirmations).
+**Resend** as the email provider, used for magic-link delivery (and any transactional email a project adds later, such as booking confirmations).
 
 ### Why
 
@@ -851,7 +851,7 @@ The agent has three concrete examples of the pattern from day one.
 
 ### Alternatives considered
 
-**pg-boss from day one.** Full Postgres-backed job queue with retries, dead-letter, and cron. Capable, but day-1 needs are pure cleanup tasks with no queue semantics; the dependency adds context the agent has to navigate before writing the first task. Documented as the **graduation path** when real job-queue needs appear (Resend retries with backoff, scheduled email digests like enrollment reminders, fan-out work).
+**pg-boss from day one.** Full Postgres-backed job queue with retries, dead-letter, and cron. Capable, but day-1 needs are pure cleanup tasks with no queue semantics; the dependency adds context the agent has to navigate before writing the first task. Documented as the **graduation path** when real job-queue needs appear (Resend retries with backoff, scheduled email digests like booking reminders, fan-out work).
 
 **DIY `SKIP LOCKED` queue table.** Reinvents what pg-boss already solves.
 
@@ -1004,7 +1004,7 @@ One option considered: serve the static frontend bundle from Hono (mount it on `
 - **Connection pooling.** Drizzle uses `node-postgres` with a connection pool. Default settings are reasonable for prototype scale; revisit if a specific project hits pool exhaustion.
 - **Backup strategy.** Railway's Postgres add-on includes automated backups. Document a tested restore path before taking real payments (the pre-launch checklist in [`PROJECT_DESIGN.md`](./PROJECT_DESIGN.md) calls this out).
 - **Feature flags.** No flag system shipped. Open question whether to add one when needed — could be as simple as a `feature_flags` table in Postgres.
-- **File uploads.** No primitive shipped — out of scope for the starter. Projects that need them (e.g. class photos, kids' artwork) add S3 (or a Railway-attached volume) as a secondary service, similar to the Redis escape-hatch pattern.
+- **File uploads.** No primitive shipped — out of scope for the starter. Projects that need them (e.g. profile photos, document attachments) add S3 (or a Railway-attached volume) as a secondary service, similar to the Redis escape-hatch pattern.
 - **Stripe Tax / sales tax.** Not handled by default. Add the Stripe Tax add-on or switch to a merchant-of-record (Lemon Squeezy / Paddle) when tax compliance becomes a real obligation.
 - **Refunds and disputes.** No refund workflow shipped. Model a `refunded` order status and handle `charge.refunded` / `charge.dispute.created` webhooks when refunds become a real need.
-- **Subscription lifecycle.** If a project moves from one-off class payments to recurring memberships, adopt Stripe Billing and handle trials, dunning, upgrades/downgrades, and cancellation via the subscription webhooks.
+- **Subscription lifecycle.** If a project moves from one-off payments to recurring memberships, adopt Stripe Billing and handle trials, dunning, upgrades/downgrades, and cancellation via the subscription webhooks.
