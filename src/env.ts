@@ -8,8 +8,27 @@ import { z } from 'zod';
  * never in `VITE_*` (those ship to the browser bundle).
  */
 const schema = z.object({
+	// Comma-separated allowlist of emails granted the `admin` role at login.
+	// Normalized to a lowercased `string[]`; empty when unset.
+	ADMIN_EMAILS: z
+		.string()
+		.default('')
+		.transform((s) =>
+			s
+				.split(',')
+				.map((e) => e.trim().toLowerCase())
+				.filter(Boolean)
+		),
+	// Public origin of the app — used to build magic-link / redirect URLs and
+	// (from P5) to validate the request Origin header for CSRF defense.
+	APP_ORIGIN: z.string().url(),
 	DATABASE_URL: z.string().url(),
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+	// Resend API key for sending magic-link emails. Optional: when unset, the code
+	// is logged to the server console instead (dev fallback).
+	RESEND_API_KEY: z.string().optional(),
+	// Secret used to sign the `sid` session cookie. Min 32 chars.
+	SESSION_SECRET: z.string().min(32),
 });
 
 const parsed = schema.safeParse(process.env);

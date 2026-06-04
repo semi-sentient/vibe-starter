@@ -55,8 +55,7 @@ export function Welcome() {
 			</section>
 
 			<div style={styles.actions}>
-				{/* Placeholder CTA — the /login route is wired in a later phase. */}
-				<a style={styles.primaryButton} href="/login" aria-disabled="true">
+				<a style={styles.primaryButton} href="/login">
 					Sign in
 				</a>
 			</div>

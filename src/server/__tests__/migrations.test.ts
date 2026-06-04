@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
  * P4 (auth) adds `auth_codes`, `sessions`; P5 adds `invites`,
  * `rate_limit_counters`, `orders`; etc. Keep this sorted.
  */
-const EXPECTED_TABLES = ['users'] as const;
+const EXPECTED_TABLES = ['auth_codes', 'sessions', 'users'] as const;
 
 describe('migration chain', () => {
 	it('produces exactly the expected application tables on a migrated database', async () => {

@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 
 /**
  * Drizzle schema — the single source of truth for the database shape.
@@ -24,4 +24,34 @@ export const users = pgTable('users', {
 	email: text('email').notNull().unique(),
 	id: serial('id').primaryKey(),
 	role: roleEnum('role').notNull().default('user'),
+});
+
+/**
+ * Pending magic-link codes (P4). ONE active code per email — `requestCode`
+ * upserts on the `email` primary key, so a fresh request replaces any prior code.
+ * Codes are 6 digits, expire after 10 minutes, and track failed `attempts`
+ * (5 max before the row is invalidated). A periodic worker (P8) GCs expired rows;
+ * `verifyCode` also deletes the row on success.
+ */
+export const authCodes = pgTable('auth_codes', {
+	attempts: integer('attempts').notNull().default(0),
+	code: text('code').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	email: text('email').primaryKey(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+});
+
+/**
+ * Server-side sessions (P4). The `id` is the opaque `sid` (32 random bytes,
+ * base64url) carried in the signed `sid` cookie. TTL is 24h with sliding refresh:
+ * `getSession` pushes `expiresAt` to now+24h on every successful read. Rows are
+ * deleted on logout and GC'd when expired (P8 worker).
+ */
+export const sessions = pgTable('sessions', {
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+	id: text('id').primaryKey(),
+	userId: integer('user_id')
+		.notNull()
+		.references(() => users.id),
 });

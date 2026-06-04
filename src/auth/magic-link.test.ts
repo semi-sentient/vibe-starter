@@ -1,0 +1,155 @@
+import { requestCode, verifyCode } from '@/auth/magic-link';
+import { db } from '@/db/client';
+import { authCodes, sessions, users } from '@/db/schema';
+import { env } from '@/env';
+import { eq } from 'drizzle-orm';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// `env.ADMIN_EMAILS` is a parsed-once array; snapshot and restore it so the
+// admin-allowlist tests can mutate it in isolation without leaking across tests.
+let adminEmailsBackup: string[];
+beforeEach(() => {
+	adminEmailsBackup = [...env.ADMIN_EMAILS];
+});
+afterEach(() => {
+	env.ADMIN_EMAILS.splice(0, env.ADMIN_EMAILS.length, ...adminEmailsBackup);
+	vi.restoreAllMocks();
+});
+
+/**
+ * Reads the active code straight from the DB so verify tests use the REAL issued
+ * code (it is random, so it can't be hardcoded). Mirrors how the route-level
+ * anchor test learns the code.
+ */
+async function issuedCodeFor(email: string): Promise<string> {
+	const [row] = await db.select().from(authCodes).where(eq(authCodes.email, email));
+	if (!row) throw new Error(`no auth_code row for ${email}`);
+	return row.code;
+}
+
+describe('requestCode', () => {
+	it('upserts a 6-digit code row keyed on the lowercased email', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await requestCode('Person@Example.COM');
+
+		const rows = await db.select().from(authCodes);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.email).toBe('person@example.com');
+		expect(rows[0]?.code).toMatch(/^\d{6}$/);
+		expect(rows[0]?.attempts).toBe(0);
+	});
+
+	it('keeps exactly one active code per email, replacing the prior one', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await requestCode('person@example.com');
+		const first = await db
+			.select()
+			.from(authCodes)
+			.where(eq(authCodes.email, 'person@example.com'));
+		// Simulate a used attempt on the first code, then re-request.
+		await db
+			.update(authCodes)
+			.set({ attempts: 3 })
+			.where(eq(authCodes.email, 'person@example.com'));
+		await requestCode('person@example.com');
+
+		const rows = await db.select().from(authCodes);
+		expect(rows).toHaveLength(1);
+		// The replacement resets attempts to 0 and (almost surely) rotates the code.
+		expect(rows[0]?.attempts).toBe(0);
+		expect(first[0]?.code).toBeDefined();
+	});
+});
+
+describe('verifyCode', () => {
+	beforeEach(() => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+	});
+
+	it('auto-creates a user (role "user") and a session on the first valid code', async () => {
+		await requestCode('newbie@example.com');
+		const code = await issuedCodeFor('newbie@example.com');
+
+		const result = await verifyCode('newbie@example.com', code);
+
+		expect(result).not.toBeNull();
+		const [user] = await db.select().from(users).where(eq(users.email, 'newbie@example.com'));
+		expect(user?.role).toBe('user');
+		// The returned sessionId points at a real, persisted session for that user.
+		const [session] = await db
+			.select()
+			.from(sessions)
+			.where(eq(sessions.id, result?.sessionId ?? ''));
+		expect(session?.userId).toBe(user?.id);
+	});
+
+	it('grants admin to an ADMIN_EMAILS address (case-insensitive)', async () => {
+		env.ADMIN_EMAILS.push('boss@example.com');
+		await requestCode('Boss@Example.com');
+		const code = await issuedCodeFor('boss@example.com');
+
+		await verifyCode('Boss@Example.com', code);
+
+		const [user] = await db.select().from(users).where(eq(users.email, 'boss@example.com'));
+		expect(user?.role).toBe('admin');
+	});
+
+	it('re-asserts role on every login (demotes when removed from the allowlist)', async () => {
+		// First login while allowlisted → admin.
+		env.ADMIN_EMAILS.push('shifting@example.com');
+		await requestCode('shifting@example.com');
+		await verifyCode('shifting@example.com', await issuedCodeFor('shifting@example.com'));
+
+		// Removed from the allowlist; next login must demote to user.
+		env.ADMIN_EMAILS.splice(0, env.ADMIN_EMAILS.length);
+		await requestCode('shifting@example.com');
+		await verifyCode('shifting@example.com', await issuedCodeFor('shifting@example.com'));
+
+		const [user] = await db.select().from(users).where(eq(users.email, 'shifting@example.com'));
+		expect(user?.role).toBe('user');
+	});
+
+	it('rejects a wrong code (returns null) and increments attempts', async () => {
+		await requestCode('person@example.com');
+
+		const result = await verifyCode('person@example.com', '000000-wrong');
+
+		expect(result).toBeNull();
+		const [row] = await db
+			.select()
+			.from(authCodes)
+			.where(eq(authCodes.email, 'person@example.com'));
+		expect(row?.attempts).toBe(1);
+	});
+
+	it('rejects an expired code and clears the row', async () => {
+		await requestCode('person@example.com');
+		const code = await issuedCodeFor('person@example.com');
+		await db
+			.update(authCodes)
+			.set({ expiresAt: new Date(Date.now() - 1000) })
+			.where(eq(authCodes.email, 'person@example.com'));
+
+		expect(await verifyCode('person@example.com', code)).toBeNull();
+		const rows = await db
+			.select()
+			.from(authCodes)
+			.where(eq(authCodes.email, 'person@example.com'));
+		expect(rows).toHaveLength(0);
+	});
+
+	it('invalidates the code after 5 failed attempts (the correct code then fails)', async () => {
+		await requestCode('person@example.com');
+		const code = await issuedCodeFor('person@example.com');
+
+		// Five wrong submissions exhaust the attempt budget and delete the row.
+		for (let i = 0; i < 5; i += 1) {
+			await verifyCode('person@example.com', 'bad-code');
+		}
+
+		// Even the correct code now fails — there is no active code anymore.
+		expect(await verifyCode('person@example.com', code)).toBeNull();
+	});
+});

@@ -4,5 +4,5 @@
 		"types": ["node"]
 	},
 	"extends": "../../tsconfig.json",
-	"include": [".", "../env.ts"]
+	"include": [".", "../auth", "../env.ts"]
 }
