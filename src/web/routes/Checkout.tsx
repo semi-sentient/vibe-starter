@@ -36,7 +36,7 @@ export function Checkout() {
 	});
 
 	return (
-		<main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center p-6 md:p-8">
+		<div className="mx-auto flex max-w-lg flex-col">
 			<Card>
 				<CardHeader>
 					<CardTitle>Sample item</CardTitle>
@@ -60,6 +60,6 @@ export function Checkout() {
 					) : null}
 				</CardContent>
 			</Card>
-		</main>
+		</div>
 	);
 }

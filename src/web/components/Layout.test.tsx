@@ -35,6 +35,19 @@ describe('<Layout />', () => {
 		expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
 	});
 
+	it('exposes Home and Checkout navigation links', async () => {
+		server.use(
+			http.get('/api/auth/me', () =>
+				HttpResponse.json({ user: { email: 'her@example.com', id: 1, role: 'user' } })
+			)
+		);
+
+		renderLayout();
+
+		expect(await screen.findByRole('link', { name: 'Home' })).toHaveAttribute('href', '/app');
+		expect(screen.getByRole('link', { name: 'Checkout' })).toHaveAttribute('href', '/checkout');
+	});
+
 	it('renders its children as the page content', async () => {
 		server.use(
 			http.get('/api/auth/me', () =>

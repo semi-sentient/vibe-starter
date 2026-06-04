@@ -1,7 +1,7 @@
 import { useAuth } from '@/web/auth/AuthProvider';
 import { Button } from '@/web/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/web/components/ui/card';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 /**
  * The signed-in landing page (`/app`), shown after a successful login. The
@@ -18,7 +18,7 @@ export function Home() {
 	}
 
 	return (
-		<main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center p-6 md:p-8">
+		<div className="mx-auto flex max-w-lg flex-col">
 			<Card>
 				<CardHeader>
 					<h1 className="text-2xl leading-none font-semibold">You&apos;re signed in</h1>
@@ -27,12 +27,15 @@ export function Home() {
 						{user?.role === 'admin' ? ' (admin)' : null}.
 					</CardDescription>
 				</CardHeader>
-				<CardContent>
+				<CardContent className="flex flex-col gap-3 sm:flex-row">
+					<Button asChild>
+						<Link to="/checkout">Buy a sample item</Link>
+					</Button>
 					<Button onClick={() => void handleSignOut()} type="button" variant="outline">
 						Sign out
 					</Button>
 				</CardContent>
 			</Card>
-		</main>
+		</div>
 	);
 }

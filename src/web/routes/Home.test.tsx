@@ -33,4 +33,17 @@ describe('<Home /> (authed home)', () => {
 		expect(await screen.findByText(/her@example.com/)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
 	});
+
+	it('offers a primary call-to-action linking to checkout', async () => {
+		server.use(
+			http.get('/api/auth/me', () =>
+				HttpResponse.json({ user: { email: 'her@example.com', id: 1, role: 'user' } })
+			)
+		);
+
+		renderHome();
+
+		const cta = await screen.findByRole('link', { name: 'Buy a sample item' });
+		expect(cta).toHaveAttribute('href', '/checkout');
+	});
 });

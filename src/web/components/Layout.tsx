@@ -1,7 +1,7 @@
 import { useAuth } from '@/web/auth/AuthProvider';
 import { Button } from '@/web/components/ui/button';
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 interface LayoutProps {
 	children?: ReactNode;
@@ -28,7 +28,15 @@ export function Layout({ children }: LayoutProps) {
 		<div className="flex min-h-screen flex-col bg-background text-foreground">
 			<header className="border-b">
 				<nav className="mx-auto flex w-full max-w-5xl flex-col gap-2 p-4 md:flex-row md:items-center md:justify-between md:p-6">
-					<span className="font-semibold">vibe-starter</span>
+					<div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
+						<span className="font-semibold">vibe-starter</span>
+						<Button asChild variant="ghost">
+							<Link to="/app">Home</Link>
+						</Button>
+						<Button asChild variant="ghost">
+							<Link to="/checkout">Checkout</Link>
+						</Button>
+					</div>
 					<div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
 						{user ? (
 							<span className="text-sm text-muted-foreground">{user.email}</span>
