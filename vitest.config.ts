@@ -42,9 +42,14 @@ export default defineConfig({
 				resolve: { alias: srcAlias },
 				test: {
 					environment: 'node',
-					// `src/server/**` plus the server-side auth domain (`src/auth/**`), which runs
-					// in the Node environment and uses the same DB-backed harness.
-					include: ['src/auth/**/*.test.ts', 'src/server/**/*.test.ts'],
+					// `src/server/**` plus the server-side auth (`src/auth/**`) and payments
+					// (`src/payments/**`) domains, which run in the Node environment and use the
+					// same DB-backed harness.
+					include: [
+						'src/auth/**/*.test.ts',
+						'src/payments/**/*.test.ts',
+						'src/server/**/*.test.ts',
+					],
 					name: 'server',
 					// Ordered: first (re)load `.env.test` into the fork (before any
 					// `src/env.ts` import), then register the `resetDb` beforeEach.

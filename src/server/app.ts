@@ -2,8 +2,10 @@ import { csrf } from '@/auth/csrf';
 import type { AuthUser } from '@/auth/types';
 import { db } from '@/db/client';
 import { authRoutes } from '@/server/routes/auth.routes';
+import { checkoutRoutes } from '@/server/routes/checkout.routes';
 import { invitesRoutes } from '@/server/routes/invites.routes';
 import { ordersRoutes } from '@/server/routes/orders.routes';
+import { stripeRoutes } from '@/server/routes/stripe.routes';
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
@@ -53,10 +55,16 @@ const app = new Hono<AppContext>()
 	})
 	// Magic-link auth, served under `/api/auth/*` (basePath + this mount).
 	.route('/auth', authRoutes)
+	// Session-protected Stripe Checkout creation, served at `/api/checkout`.
+	.route('/checkout', checkoutRoutes)
 	// Admin-only out-of-band role grants, served under `/api/invites/*`.
 	.route('/invites', invitesRoutes)
 	// User-owned orders, served under `/api/orders/*` (owner-scoped reads).
-	.route('/orders', ordersRoutes);
+	.route('/orders', ordersRoutes)
+	// Stripe webhook (payment source of truth), served at `/api/stripe/webhook`
+	// — raw-body signature verified, CSRF-exempt (see CSRF_EXEMPT_PATHS). The
+	// `/api/checkout` session-protected create route is mounted alongside it.
+	.route('/stripe', stripeRoutes);
 
 export { app };
 

@@ -29,6 +29,14 @@ const schema = z.object({
 	RESEND_API_KEY: z.string().optional(),
 	// Secret used to sign the `sid` session cookie. Min 32 chars.
 	SESSION_SECRET: z.string().min(32),
+	// Stripe SECRET API key (P7) — creates Checkout Sessions and calls the Stripe
+	// API. Server-only; NEVER expose it (no `VITE_` prefix). Use a test-mode
+	// `sk_test_...` key in dev.
+	STRIPE_SECRET_KEY: z.string(),
+	// Stripe webhook signing secret (P7) — verifies `POST /api/stripe/webhook`
+	// signatures against the RAW request body. Server-only. In dev the Stripe CLI
+	// (`stripe listen`) prints a `whsec_...` value to use here.
+	STRIPE_WEBHOOK_SECRET: z.string(),
 });
 
 const parsed = schema.safeParse(process.env);

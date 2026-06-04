@@ -12,6 +12,12 @@ const schema = z.object({
 	// so the typed paths already include `/api` — the client base is the ORIGIN, not `/api`.
 	// In dev, `/` lets Vite's proxy forward `/api/*` to the Hono server.
 	VITE_API_URL: z.string().default('/'),
+	// Stripe PUBLISHABLE key (P7) — safe to expose in the browser bundle (unlike
+	// the secret/webhook keys, which are server-only). The shipped flow is HOSTED
+	// Checkout (a redirect to Stripe's page), which needs NO client-side Stripe
+	// config, so this is OPTIONAL — it is validated here for builders who later
+	// add Stripe.js / Elements (an embedded card form), which DO need it.
+	VITE_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
 });
 
 const parsed = schema.safeParse(import.meta.env);
