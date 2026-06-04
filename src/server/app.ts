@@ -1,6 +1,8 @@
 import { csrf } from '@/auth/csrf';
 import type { AuthUser } from '@/auth/types';
 import { db } from '@/db/client';
+import { env } from '@/env';
+import { logger, loggerMiddleware } from '@/server/logger';
 import { authRoutes } from '@/server/routes/auth.routes';
 import { checkoutRoutes } from '@/server/routes/checkout.routes';
 import { invitesRoutes } from '@/server/routes/invites.routes';
@@ -8,6 +10,7 @@ import { ordersRoutes } from '@/server/routes/orders.routes';
 import { stripeRoutes } from '@/server/routes/stripe.routes';
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
+import type { Logger } from 'pino';
 
 /**
  * Paths exempt from the CSRF Origin check. The Stripe webhook (P7,
@@ -22,10 +25,11 @@ const CSRF_EXEMPT_PATHS = ['/api/stripe/webhook'];
  * Hono context type, owned here in `app.ts`.
  *
  * P4 (auth) added `user`, set by the `requireAuth` middleware on protected
- * routes (`c.var.user`). Later phases widen it further — the logging phase (P8)
- * adds `logger`. Routes that don't run `requireAuth` simply never read `user`.
+ * routes (`c.var.user`). P8 (logging) added `logger`, a per-request child set by
+ * `loggerMiddleware` (mounted first, so `c.var.logger` is always present).
+ * Routes that don't run `requireAuth` simply never read `user`.
  */
-type AppContext = { Variables: { user: AuthUser } };
+type AppContext = { Variables: { logger: Logger; user: AuthUser } };
 
 /**
  * The Hono app. Routes are mounted under `.basePath('/api')`, so the path
@@ -40,10 +44,16 @@ type AppContext = { Variables: { user: AuthUser } };
  */
 const app = new Hono<AppContext>()
 	.basePath('/api')
+	// Structured request logging. Mounted FIRST (before CSRF, routers, and the
+	// Stripe webhook) so every request — including ones that error — carries the
+	// same per-request `requestId`. It logs method/path/status/duration ONLY and
+	// NEVER reads the body, so the Stripe webhook stays the sole consumer of the
+	// raw body its signature check depends on (see logger.ts + stripe.routes.ts).
+	.use('*', loggerMiddleware)
 	// CSRF defense-in-depth: reject non-GET requests with a mismatched Origin.
-	// Mounted FIRST so it guards every route below; the Stripe webhook (P7) is
-	// exempted via CSRF_EXEMPT_PATHS. Rate limiting lives inside the auth router
-	// (on request-code/verify), not here.
+	// Guards every route below; the Stripe webhook (P7) is exempted via
+	// CSRF_EXEMPT_PATHS. Rate limiting lives inside the auth router (on
+	// request-code/verify), not here.
 	.use('*', csrf({ exemptPaths: CSRF_EXEMPT_PATHS }))
 	.get('/health', async (c) => {
 		try {
@@ -64,12 +74,24 @@ const app = new Hono<AppContext>()
 	// Stripe webhook (payment source of truth), served at `/api/stripe/webhook`
 	// — raw-body signature verified, CSRF-exempt (see CSRF_EXEMPT_PATHS). The
 	// `/api/checkout` session-protected create route is mounted alongside it.
-	.route('/stripe', stripeRoutes);
+	.route('/stripe', stripeRoutes)
+	// Centralized error handler. Any uncaught error from the routes/middleware
+	// above lands here: it is logged on the request-scoped logger (so the line
+	// carries the same `requestId`), then a `500` is returned. The body is generic
+	// in production; outside production it echoes the message + stack to aid local
+	// debugging (never in prod — that would leak internals).
+	.onError((err, c) => {
+		(c.get('logger') ?? logger).error({ err }, 'unhandled error');
+		if (env.NODE_ENV === 'production') {
+			return c.json({ error: 'Internal Server Error' }, 500);
+		}
+		return c.json({ error: err.message, stack: err.stack }, 500);
+	});
 
 export { app };
 
 /** Exported for the frontend Hono RPC client (`hc<AppType>`). */
 export type AppType = typeof app;
 
-/** The Hono context type (Variables incl. `user`), for middleware/route typing. */
+/** The Hono context type (Variables incl. `logger`, `user`), for middleware/route typing. */
 export type { AppContext };

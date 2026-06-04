@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 
 /**
  * Server-side environment schema, parsed once at boot.
@@ -19,6 +19,10 @@ const schema = z.object({
 				.map((e) => e.trim().toLowerCase())
 				.filter(Boolean)
 		),
+	// Anthropic API key. OPTIONAL and intentionally UNUSED by the shipped code —
+	// it ships here so builders adding AI features have the validated slot ready
+	// (consume it via `env.ANTHROPIC_API_KEY`). No shipped code path reads it.
+	ANTHROPIC_API_KEY: z.string().optional(),
 	// Public origin of the app — used to build magic-link / redirect URLs and
 	// (from P5) to validate the request Origin header for CSRF defense.
 	APP_ORIGIN: z.string().url(),
@@ -39,13 +43,28 @@ const schema = z.object({
 	STRIPE_WEBHOOK_SECRET: z.string(),
 });
 
-const parsed = schema.safeParse(process.env);
-
-if (!parsed.success) {
-	const issues = parsed.error.issues
-		.map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
-		.join('\n');
-	throw new Error(`Invalid server environment:\n${issues}`);
+/**
+ * Parses + validates `process.env`, or aborts the boot.
+ *
+ * On a `ZodError` we print ONLY the FIRST offending var as a single readable line
+ * (`path: message`) and `process.exit(1)` — a one-line boot failure beats a wall
+ * of stack trace when a deploy is missing an env var. We deliberately use
+ * `console.error` (not the pino logger) because `src/server/logger.ts` imports
+ * THIS module, and the logger may not be constructable when the env is invalid.
+ */
+function loadEnv(): z.infer<typeof schema> {
+	try {
+		return schema.parse(process.env);
+	} catch (err) {
+		if (err instanceof ZodError) {
+			const [issue] = err.issues;
+			const path = issue?.path.join('.') || '(root)';
+			// eslint-disable-next-line no-console -- boot-time fatal; logger imports this module.
+			console.error(`Invalid server environment — ${path}: ${issue?.message}`);
+			process.exit(1);
+		}
+		throw err;
+	}
 }
 
-export const env = parsed.data;
+export const env = loadEnv();

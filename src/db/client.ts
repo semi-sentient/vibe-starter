@@ -1,5 +1,6 @@
 import * as schema from '@/db/schema';
 import { env } from '@/env';
+import { logger } from '@/server/logger';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
@@ -19,8 +20,7 @@ const pool = new Pool({ connectionString: env.DATABASE_URL });
 // down instead of degrading it. Swallow-and-log keeps the server alive; the pool
 // transparently re-establishes connections on the next query.
 pool.on('error', (err) => {
-	// eslint-disable-next-line no-console -- structured logging (pino) arrives in a later phase.
-	console.error('[db] idle client error', err);
+	logger.error({ err }, 'idle database client error');
 });
 
 /** Drizzle client bound to the shared pool. The full `schema` is passed so `db.query.*` relational queries work. */
