@@ -31,5 +31,20 @@ npm run dev
 Then open <http://localhost:5173> — you should see the Welcome page with a live
 `API ✓ connected` status badge.
 
+## Secret scanning (gitleaks)
+
+The pre-commit hook runs [gitleaks](https://github.com/gitleaks/gitleaks) to
+catch accidentally staged secrets. It is a Go binary, not an npm package, so
+install it separately:
+
+```bash
+brew install gitleaks
+# or download a release: https://github.com/gitleaks/gitleaks/releases
+```
+
+If gitleaks is not installed the hook prints a warning and skips the local scan
+— CI (`gitleaks-action`) scans full history as the backstop — so installing it
+locally is recommended but optional.
+
 A fuller README (stack, project structure, development workflow, deploy, and
 skills) ships closer to launch.
