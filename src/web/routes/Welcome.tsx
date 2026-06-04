@@ -4,24 +4,30 @@ import { useQuery } from '@tanstack/react-query';
 /**
  * Public, unauthenticated landing page mounted at `/`.
  *
- * Doubles as the Phase-1 end-to-end RPC type-safety proof: it calls the typed
- * Hono client (`client.api.health.$get()`) through TanStack Query and reflects
- * the result in a live status badge. Styling is intentionally minimal — Tailwind
- * + shadcn polish arrives in a later phase.
+ * Doubles as the end-to-end RPC type-safety proof: it calls the typed Hono
+ * client (`client.api.health.$get()`) through TanStack Query and reflects the
+ * result in live status badges. The `/health` endpoint also probes the database,
+ * so the response distinguishes three states the badges mirror:
+ *   - fetch rejects (server unreachable)      → API ✗, Database ✗
+ *   - 503 `{ db: 'down' }` (server up, DB out) → API ✓, Database ✗
+ *   - 200 `{ db: 'up' }`                       → API ✓, Database ✓
+ * A 503 is deliberately NOT thrown — it is a real server response, so the query
+ * resolves with the parsed body and the API badge stays green.
+ * Styling is intentionally minimal — Tailwind + shadcn polish arrives in a later phase.
  */
 export function Welcome() {
 	const health = useQuery({
 		queryFn: async () => {
+			// Resolves on any HTTP response (200 or 503); only a network failure rejects.
 			const res = await client.api.health.$get();
-			if (!res.ok) {
-				throw new Error(`Health check failed: ${res.status}`);
-			}
 			return res.json();
 		},
 		queryKey: ['health'],
 	});
 
-	const apiConnected = health.isSuccess && health.data?.status === 'ok';
+	// A resolved query means the server responded at all — that is the API signal.
+	const apiConnected = health.isSuccess;
+	const dbConnected = health.isSuccess && health.data.db === 'up';
 
 	return (
 		<main style={styles.main}>
@@ -41,9 +47,9 @@ export function Welcome() {
 				/>
 				<StatusBadge
 					label="Database"
-					state="pending"
+					state={health.isPending ? 'pending' : dbConnected ? 'ok' : 'error'}
 					okText="connected"
-					pendingText="not yet wired"
+					pendingText="checking…"
 					errorText="unreachable"
 				/>
 			</section>

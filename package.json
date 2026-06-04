@@ -10,14 +10,20 @@
 	},
 	"scripts": {
 		"build": "npm run build:web && npm run build:server",
-		"build:server": "tsup src/server/index.ts --format esm --out-dir dist-server --clean",
+		"build:server": "tsup --entry.index src/server/index.ts --entry.migrate src/db/migrate.ts --format esm --out-dir dist-server --clean",
 		"build:web": "vite build",
-		"dev": "concurrently -k -n web,api -c blue,green \"vite\" \"tsx watch --env-file-if-exists=.env src/server/index.ts\""
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio",
+		"dev": "concurrently -k -n web,api -c blue,green \"vite\" \"tsx watch --env-file-if-exists=.env src/server/index.ts\"",
+		"predev": "npm run db:migrate"
 	},
 	"dependencies": {
 		"@hono/node-server": "^2.0.4",
 		"@tanstack/react-query": "^5.101.0",
+		"drizzle-orm": "^0.45.2",
 		"hono": "^4.12.23",
+		"pg": "^8.21.0",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7",
 		"react-router": "^7.16.0",
@@ -25,10 +31,12 @@
 	},
 	"devDependencies": {
 		"@types/node": "^25.9.1",
+		"@types/pg": "^8.20.0",
 		"@types/react": "^19.2.16",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "^6.0.2",
 		"concurrently": "^10.0.3",
+		"drizzle-kit": "^0.31.10",
 		"tsup": "^8.5.1",
 		"tsx": "^4.22.4",
 		"typescript": "^6.0.3",
