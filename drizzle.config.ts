@@ -1,5 +1,5 @@
-import { env } from '@/env';
 import { defineConfig } from 'drizzle-kit';
+import { env } from '@/env';
 
 /**
  * Drizzle Kit configuration — drives `db:generate`, `db:migrate`, and `db:studio`.

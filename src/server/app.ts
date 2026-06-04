@@ -1,3 +1,6 @@
+import { sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+import type { Logger } from 'pino';
 import { csrf } from '@/auth/csrf';
 import type { AuthUser } from '@/auth/types';
 import { db } from '@/db/client';
@@ -8,9 +11,6 @@ import { checkoutRoutes } from '@/server/routes/checkout.routes';
 import { invitesRoutes } from '@/server/routes/invites.routes';
 import { ordersRoutes } from '@/server/routes/orders.routes';
 import { stripeRoutes } from '@/server/routes/stripe.routes';
-import { sql } from 'drizzle-orm';
-import { Hono } from 'hono';
-import type { Logger } from 'pino';
 
 /**
  * Paths exempt from the CSRF Origin check. The Stripe webhook (P7,

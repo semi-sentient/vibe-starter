@@ -1,6 +1,6 @@
-import { ErrorBoundary } from '@/web/components/ErrorBoundary';
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ErrorBoundary } from '@/web/components/ErrorBoundary';
 
 /** A child that always throws during render, to trip the boundary. */
 function Boom(): never {

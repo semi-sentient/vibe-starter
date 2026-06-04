@@ -1,7 +1,7 @@
-import { env } from '@/env';
+import { randomUUID } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
 import pino, { type Logger } from 'pino';
-import { randomUUID } from 'node:crypto';
+import { env } from '@/env';
 
 /**
  * The root application logger (pino). Structured JSON to stdout — the format

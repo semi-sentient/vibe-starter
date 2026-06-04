@@ -1,16 +1,16 @@
-import { readSessionCookie, clearSessionCookie, setSessionCookie } from '@/auth/cookie';
-import { requestCode, verifyCode } from '@/auth/magic-link';
-import { requireAuth } from '@/auth/middleware';
-import { clientIp, rateLimit } from '@/auth/rate-limit';
-import { destroySession } from '@/auth/sessions';
-import type { AppContext } from '@/server/app';
-import { db } from '@/db/client';
-import { users } from '@/db/schema';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { readSessionCookie, clearSessionCookie, setSessionCookie } from '@/auth/cookie';
+import { requestCode, verifyCode } from '@/auth/magic-link';
+import { requireAuth } from '@/auth/middleware';
+import { clientIp, rateLimit } from '@/auth/rate-limit';
+import { destroySession } from '@/auth/sessions';
+import { db } from '@/db/client';
+import { users } from '@/db/schema';
+import type { AppContext } from '@/server/app';
 
 /** Rate-limit defaults for the open auth endpoints: 5 attempts per 10 minutes. */
 const AUTH_RATE_LIMIT = 5;
@@ -32,7 +32,7 @@ function authRateLimitKey(scope: string) {
 		try {
 			const body: unknown = await c.req.json();
 			if (body && typeof body === 'object' && 'email' in body) {
-				const value = (body as { email: unknown }).email;
+				const value = body.email;
 				if (typeof value === 'string') email = value.toLowerCase();
 			}
 		} catch {

@@ -1,11 +1,11 @@
+import { randomInt } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import { consumeInvite } from '@/auth/invites';
 import { createSession } from '@/auth/sessions';
-import { sendMagicCode } from '@/server/email/resend';
 import { db } from '@/db/client';
 import { authCodes, users } from '@/db/schema';
 import { env } from '@/env';
-import { eq } from 'drizzle-orm';
-import { randomInt } from 'node:crypto';
+import { sendMagicCode } from '@/server/email/resend';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;

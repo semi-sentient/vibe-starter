@@ -1,7 +1,7 @@
-import { csrf } from '@/auth/csrf';
-import { env } from '@/env';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
+import { csrf } from '@/auth/csrf';
+import { env } from '@/env';
 
 /** A throwaway app with `csrf()` mounted globally and a couple of routes. */
 function harness(exemptPaths?: string[]) {

@@ -1,7 +1,7 @@
+import { Hono } from 'hono';
 import { requireAuth } from '@/auth/middleware';
 import { createCheckoutSession } from '@/payments/stripe';
 import type { AppContext } from '@/server/app';
-import { Hono } from 'hono';
 
 /**
  * Checkout router, mounted at `/api/checkout` (the app's `.basePath('/api')` +

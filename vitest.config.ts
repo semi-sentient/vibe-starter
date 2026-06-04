@@ -1,7 +1,6 @@
-import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
-
 import { loadTestEnv } from './src/server/test/loadTestEnv';
 
 // Load `.env.test` into THIS (the main) process BEFORE anything below imports

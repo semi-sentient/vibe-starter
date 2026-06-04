@@ -1,3 +1,8 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router';
+import { z } from 'zod';
 import { client } from '@/web/api/client';
 import { useAuth } from '@/web/auth/AuthProvider';
 import { Button } from '@/web/components/ui/button';
@@ -11,11 +16,6 @@ import {
 	FormMessage,
 } from '@/web/components/ui/form';
 import { Input } from '@/web/components/ui/input';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router';
-import { z } from 'zod';
 
 /** Where a successful sign-in lands. The public Welcome page stays at `/`. */
 const AUTHED_HOME = '/app';
@@ -105,7 +105,11 @@ function EmailStep({ onSubmit }: { onSubmit: (values: EmailValues) => Promise<vo
 
 	return (
 		<Form {...form}>
-			<form className="flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
+			<form
+				className="flex flex-col gap-4"
+				noValidate
+				onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}
+			>
 				<FormField
 					control={form.control}
 					name="email"
@@ -149,7 +153,11 @@ function CodeStep({ onSubmit }: { onSubmit: (values: CodeValues) => Promise<void
 
 	return (
 		<Form {...form}>
-			<form className="flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(handle)}>
+			<form
+				className="flex flex-col gap-4"
+				noValidate
+				onSubmit={(e) => void form.handleSubmit(handle)(e)}
+			>
 				<FormField
 					control={form.control}
 					name="code"

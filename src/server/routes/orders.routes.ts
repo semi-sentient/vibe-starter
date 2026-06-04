@@ -1,9 +1,9 @@
-import { requireAuth } from '@/auth/middleware';
-import type { AppContext } from '@/server/app';
-import { db } from '@/db/client';
-import { orders } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { requireAuth } from '@/auth/middleware';
+import { db } from '@/db/client';
+import { orders } from '@/db/schema';
+import type { AppContext } from '@/server/app';
 
 /**
  * Orders router, mounted at `/api/orders` (the app's `.basePath('/api')` + the

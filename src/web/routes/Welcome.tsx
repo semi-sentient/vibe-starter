@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { client } from '@/web/api/client';
 import { Button } from '@/web/components/ui/button';
 import {
@@ -8,7 +9,6 @@ import {
 	CardTitle,
 } from '@/web/components/ui/card';
 import { cn } from '@/web/lib/utils';
-import { useQuery } from '@tanstack/react-query';
 
 /**
  * Public, unauthenticated landing page mounted at `/`.
@@ -45,7 +45,7 @@ export function Welcome() {
 				</h1>
 				<p className="text-muted-foreground">
 					Your full-stack TypeScript app is wired up and running. Edit this page in{' '}
-					<code className="rounded bg-muted px-1 py-0.5 text-sm">
+					<code className="bg-muted rounded px-1 py-0.5 text-sm">
 						src/web/routes/Welcome.tsx
 					</code>{' '}
 					to make it yours.
@@ -83,7 +83,7 @@ export function Welcome() {
 				<Button asChild>
 					<a href="/login">Sign in</a>
 				</Button>
-				<nav className="flex gap-4 text-sm text-muted-foreground">
+				<nav className="text-muted-foreground flex gap-4 text-sm">
 					<a
 						className="underline-offset-4 hover:underline"
 						href="https://github.com/semi-sentient/vibe-starter#readme"

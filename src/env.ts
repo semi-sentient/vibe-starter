@@ -59,7 +59,7 @@ function loadEnv(): z.infer<typeof schema> {
 		if (err instanceof ZodError) {
 			const [issue] = err.issues;
 			const path = issue?.path.join('.') || '(root)';
-			// eslint-disable-next-line no-console -- boot-time fatal; logger imports this module.
+
 			console.error(`Invalid server environment — ${path}: ${issue?.message}`);
 			process.exit(1);
 		}

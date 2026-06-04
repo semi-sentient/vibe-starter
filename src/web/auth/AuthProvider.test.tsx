@@ -1,10 +1,10 @@
-import { AuthProvider, useAuth } from '@/web/auth/AuthProvider';
-import { server } from '@/web/test/msw-server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
+import { AuthProvider, useAuth } from '@/web/auth/AuthProvider';
+import { server } from '@/web/test/msw-server';
 
 function renderWithProviders(ui: ReactElement) {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -1,9 +1,10 @@
-// `loadTestEnv` MUST run before any import that transitively pulls in
-// `src/env.ts` (e.g. `@/db/migrate` -> `@/db/client` -> `@/env`). vitest.config.ts
-// already loaded `.env.test` in this process, but globalSetup is an independent
-// module graph, so we import the loader FIRST (side effect) and call it before the
-// db imports are evaluated. Static `import` statements are hoisted, so we cannot
-// rely on import order alone for the call — see the explicit invocation below.
+/* eslint-disable import/order -- The `loadTestEnv()` call MUST run before any import
+   that transitively pulls in `src/env.ts` (`@/db/migrate` -> `@/db/client` -> `@/env`).
+   vitest.config.ts already loaded `.env.test` in this process, but globalSetup is an
+   independent module graph, so we import the loader FIRST and call it before the db
+   imports below are evaluated. `import/order` would group/reorder these imports and
+   hoist the `@/db/*` ones above the call, breaking the env-loading sequence — so this
+   block opts out of the rule. */
 import { loadTestEnv } from './loadTestEnv';
 
 loadTestEnv();
@@ -11,6 +12,7 @@ loadTestEnv();
 // These imports evaluate `src/env.ts`; safe now that `.env.test` is loaded above.
 import { runMigrations } from '@/db/migrate';
 import { Client } from 'pg';
+/* eslint-enable import/order */
 
 /**
  * Vitest global setup — runs ONCE in the main process before any test project.

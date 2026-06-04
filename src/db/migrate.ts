@@ -1,6 +1,6 @@
-import { db } from '@/db/client';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { pathToFileURL } from 'node:url';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { db } from '@/db/client';
 
 /**
  * Production migrator. Replays the checked-in SQL migrations in
@@ -27,7 +27,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 			process.exit(0);
 		})
 		.catch((err: unknown) => {
-			// eslint-disable-next-line no-console -- structured logging arrives in a later phase.
 			console.error('[migrate] migration failed', err);
 			process.exit(1);
 		});

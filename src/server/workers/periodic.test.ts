@@ -1,15 +1,14 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
 import { authCodes, rateLimitCounters, sessions } from '@/db/schema';
 import { logger } from '@/server/logger';
+import { createUser } from '@/server/test/factories/users';
 import {
 	cleanRateLimitCounters,
 	expireAuthCodes,
 	expireSessions,
 	runPeriodically,
 } from '@/server/workers/periodic';
-import { createUser } from '@/server/test/factories/users';
-import { eq } from 'drizzle-orm';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -22,8 +21,16 @@ afterEach(() => {
 describe('expireAuthCodes', () => {
 	it('deletes only codes whose expiry has passed', async () => {
 		await db.insert(authCodes).values([
-			{ code: '111111', email: 'expired@example.com', expiresAt: new Date(Date.now() - MINUTE_MS) },
-			{ code: '222222', email: 'live@example.com', expiresAt: new Date(Date.now() + MINUTE_MS) },
+			{
+				code: '111111',
+				email: 'expired@example.com',
+				expiresAt: new Date(Date.now() - MINUTE_MS),
+			},
+			{
+				code: '222222',
+				email: 'live@example.com',
+				expiresAt: new Date(Date.now() + MINUTE_MS),
+			},
 		]);
 
 		const removed = await expireAuthCodes();
@@ -84,11 +91,8 @@ describe('runPeriodically', () => {
 
 	it('swallows a thrown error (logs it) so the timer survives a bad tick', async () => {
 		vi.useFakeTimers();
-		const err = vi.spyOn(logger, 'error').mockReturnValue(undefined as unknown as void);
-		const fn = vi
-			.fn()
-			.mockRejectedValueOnce(new Error('tick failed'))
-			.mockResolvedValueOnce(3);
+		const err = vi.spyOn(logger, 'error').mockReturnValue(undefined);
+		const fn = vi.fn().mockRejectedValueOnce(new Error('tick failed')).mockResolvedValueOnce(3);
 
 		const handle = runPeriodically('flaky', 1000, fn);
 		try {

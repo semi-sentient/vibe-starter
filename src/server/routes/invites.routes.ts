@@ -1,9 +1,9 @@
-import { createInvite } from '@/auth/invites';
-import { requireRole } from '@/auth/middleware';
-import type { AppContext } from '@/server/app';
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { createInvite } from '@/auth/invites';
+import { requireRole } from '@/auth/middleware';
+import type { AppContext } from '@/server/app';
 
 /**
  * Out-of-band role grants. `email` is lowercased downstream by `createInvite`;

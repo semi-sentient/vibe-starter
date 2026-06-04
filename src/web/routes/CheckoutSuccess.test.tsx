@@ -1,10 +1,10 @@
-import { CheckoutSuccess } from '@/web/routes/CheckoutSuccess';
-import { server } from '@/web/test/msw-server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
+import { CheckoutSuccess } from '@/web/routes/CheckoutSuccess';
+import { server } from '@/web/test/msw-server';
 
 // Mount the success page at a URL carrying `?session_id=...`, exactly as Stripe's
 // `success_url` redirect would. A short `refetchInterval` keeps the test fast.

@@ -1,8 +1,8 @@
-import { db } from '@/db/client';
-import { rateLimitCounters } from '@/db/schema';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { sql } from 'drizzle-orm';
 import type { Context, MiddlewareHandler } from 'hono';
+import { db } from '@/db/client';
+import { rateLimitCounters } from '@/db/schema';
 
 /** Default window: 10 minutes, matching the magic-link code TTL. */
 const DEFAULT_WINDOW_MS = 10 * 60 * 1000;

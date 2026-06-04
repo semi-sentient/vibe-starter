@@ -16,9 +16,13 @@
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
 		"dev": "concurrently -k -n web,api -c blue,green \"vite\" \"tsx watch --env-file-if-exists=.env src/server/index.ts\"",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"lint": "eslint . --max-warnings 0",
 		"predev": "npm run db:migrate",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"typecheck": "tsc -p src/server/tsconfig.json --noEmit && tsc -p src/web/tsconfig.json --noEmit"
 	},
 	"dependencies": {
 		"@hono/node-server": "^2.0.4",
@@ -54,12 +58,21 @@
 		"@vitejs/plugin-react": "^6.0.2",
 		"concurrently": "^10.0.3",
 		"drizzle-kit": "^0.31.10",
+		"eslint": "^9.39.4",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-import": "^2.32.0",
+		"eslint-plugin-react": "^7.37.5",
+		"eslint-plugin-react-hooks": "^7.1.1",
+		"globals": "^17.6.0",
 		"happy-dom": "^20.10.1",
 		"msw": "^2.14.6",
+		"prettier": "^3.8.3",
+		"prettier-plugin-tailwindcss": "^0.8.0",
 		"tailwindcss": "^4.3.0",
 		"tsup": "^8.5.1",
 		"tsx": "^4.22.4",
 		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.60.1",
 		"vite": "^8.0.16",
 		"vitest": "^4.1.8"
 	}

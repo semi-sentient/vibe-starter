@@ -1,9 +1,9 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from '@/env';
 import { createOrder } from '@/server/test/factories/orders';
 import { createUser } from '@/server/test/factories/users';
 import { createTestServer } from '@/server/test/helpers/createTestServer';
 import { loginAs } from '@/server/test/helpers/loginAs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Magic-link sending falls back to console in tests; silence it. The admin tests
 // push onto the parsed-once `env.ADMIN_EMAILS` array, so snapshot/restore it.
@@ -72,7 +72,7 @@ describe('GET /api/orders/:id (the 404 ownership guard)', () => {
 	});
 
 	it('returns 404 (NOT 403) for another user’s order — never leaks existence', async () => {
-		const me = await createUser({ email: 'me@example.com', role: 'user' });
+		await createUser({ email: 'me@example.com', role: 'user' });
 		const other = await createUser({ email: 'other@example.com', role: 'user' });
 		const theirOrder = await createOrder({ userId: other.id });
 

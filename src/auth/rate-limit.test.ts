@@ -1,9 +1,9 @@
-import { clientIp, rateLimit } from '@/auth/rate-limit';
-import { db } from '@/db/client';
-import { rateLimitCounters } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
+import { clientIp, rateLimit } from '@/auth/rate-limit';
+import { db } from '@/db/client';
+import { rateLimitCounters } from '@/db/schema';
 
 /** A throwaway app limited to `limit` hits per `window` ms on a fixed key. */
 function harness(opts: { key?: string; limit?: number; window?: number } = {}) {

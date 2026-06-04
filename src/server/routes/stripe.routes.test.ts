@@ -1,3 +1,5 @@
+import { eq } from 'drizzle-orm';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
 import { orders } from '@/db/schema';
 import { env } from '@/env';
@@ -5,8 +7,6 @@ import { stripe } from '@/payments/stripe';
 import { createOrder } from '@/server/test/factories/orders';
 import { createUser } from '@/server/test/factories/users';
 import { createTestServer } from '@/server/test/helpers/createTestServer';
-import { eq } from 'drizzle-orm';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Anchor test #3 — the payment webhook, the riskiest integration in the starter.

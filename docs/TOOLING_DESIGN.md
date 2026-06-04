@@ -8,30 +8,30 @@ This document covers static analysis, testing, CI/CD, repo bootstrap, and agent 
 
 ## Decision summary
 
-| Decision | Choice | Primary alternative considered |
-|---|---|---|
-| TypeScript strictness | **`strict` + `noUncheckedIndexedAccess`** | Loose, "maximum strict" with `exactOptionalPropertyTypes` |
-| `any` policy | **Banned as ESLint error** | Allowed with warning, allowed silently |
-| Type-error suppression | **`@ts-expect-error` allowed; `@ts-ignore` forbidden** | Both allowed |
-| ESLint preset | **`@typescript-eslint/recommended-type-checked` + `eslint:recommended`** | `eslint:recommended` only |
-| Warning policy | **Zero warnings** (every rule `error` or `off`) | Warnings allowed |
-| Formatter | **Prettier**, 100-char line limit | dprint, ESLint stylistic |
-| Test runner | **Vitest** | Jest |
-| Component testing | **React Testing Library + MSW** | Enzyme, Cypress component tests |
-| Backend testing | **In-process Hono + test DB** | Supertest with mocks |
-| TDD methodology | **Yes — `tdd` skill from the bundled skills pipeline (pre-installed)** | Tests written after implementation |
-| Coverage threshold | **None** | 80% line coverage |
-| Pre-commit | **Husky + lint-staged + gitleaks** | Pre-commit hooks omitted |
-| Pre-commit tests | **`vitest --related --run`** | Full suite, no tests |
-| CI | **GitHub Actions** | Railway built-in CI, CircleCI |
-| Deploy | **Railway GitHub integration + branch protection** | CI-orchestrated deploy |
-| PR previews | **Enabled** | Disabled |
-| Agent context | **`AGENTS.md` canonical + `CLAUDE.md` symlink** | Tool-specific files maintained separately |
-| Skill orchestration | **Bundled skills pipeline pre-installed** ([`semi-sentient/skills-workflow`](https://github.com/semi-sentient/skills-workflow)) — workflow: `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan` (`tdd` + `commit` run automatically) | None / leave to user |
-| Distribution | **GitHub template repo** | npm scaffold CLI |
-| Node version | **24.x**, pinned via `.nvmrc` and `engines` | LTS without pinning |
-| Package manager | **npm** | pnpm, yarn |
-| License | **MIT** | Proprietary |
+| Decision               | Choice                                                                                                                                                                                                                                          | Primary alternative considered                            |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| TypeScript strictness  | **`strict` + `noUncheckedIndexedAccess`**                                                                                                                                                                                                       | Loose, "maximum strict" with `exactOptionalPropertyTypes` |
+| `any` policy           | **Banned as ESLint error**                                                                                                                                                                                                                      | Allowed with warning, allowed silently                    |
+| Type-error suppression | **`@ts-expect-error` allowed; `@ts-ignore` forbidden**                                                                                                                                                                                          | Both allowed                                              |
+| ESLint preset          | **`@typescript-eslint/recommended-type-checked` + `eslint:recommended`**                                                                                                                                                                        | `eslint:recommended` only                                 |
+| Warning policy         | **Zero warnings** (every rule `error` or `off`)                                                                                                                                                                                                 | Warnings allowed                                          |
+| Formatter              | **Prettier**, 100-char line limit                                                                                                                                                                                                               | dprint, ESLint stylistic                                  |
+| Test runner            | **Vitest**                                                                                                                                                                                                                                      | Jest                                                      |
+| Component testing      | **React Testing Library + MSW**                                                                                                                                                                                                                 | Enzyme, Cypress component tests                           |
+| Backend testing        | **In-process Hono + test DB**                                                                                                                                                                                                                   | Supertest with mocks                                      |
+| TDD methodology        | **Yes — `tdd` skill from the bundled skills pipeline (pre-installed)**                                                                                                                                                                          | Tests written after implementation                        |
+| Coverage threshold     | **None**                                                                                                                                                                                                                                        | 80% line coverage                                         |
+| Pre-commit             | **Husky + lint-staged + gitleaks**                                                                                                                                                                                                              | Pre-commit hooks omitted                                  |
+| Pre-commit tests       | **`vitest --related --run`**                                                                                                                                                                                                                    | Full suite, no tests                                      |
+| CI                     | **GitHub Actions**                                                                                                                                                                                                                              | Railway built-in CI, CircleCI                             |
+| Deploy                 | **Railway GitHub integration + branch protection**                                                                                                                                                                                              | CI-orchestrated deploy                                    |
+| PR previews            | **Enabled**                                                                                                                                                                                                                                     | Disabled                                                  |
+| Agent context          | **`AGENTS.md` canonical + `CLAUDE.md` symlink**                                                                                                                                                                                                 | Tool-specific files maintained separately                 |
+| Skill orchestration    | **Bundled skills pipeline pre-installed** ([`semi-sentient/skills-workflow`](https://github.com/semi-sentient/skills-workflow)) — workflow: `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan` (`tdd` + `commit` run automatically) | None / leave to user                                      |
+| Distribution           | **GitHub template repo**                                                                                                                                                                                                                        | npm scaffold CLI                                          |
+| Node version           | **24.x**, pinned via `.nvmrc` and `engines`                                                                                                                                                                                                     | LTS without pinning                                       |
+| Package manager        | **npm**                                                                                                                                                                                                                                         | pnpm, yarn                                                |
+| License                | **MIT**                                                                                                                                                                                                                                         | Proprietary                                               |
 
 ---
 
@@ -42,14 +42,14 @@ This document covers static analysis, testing, CI/CD, repo bootstrap, and agent 
 ```jsonc
 // tsconfig.json (key compiler options)
 {
-  "compilerOptions": {
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noFallthroughCasesInSwitch": true,
-    // The following are deliberately NOT enabled:
-    // - "exactOptionalPropertyTypes": adds friction for marginal benefit
-    // - "noImplicitOverride": ceremony without significant payoff
-  }
+	"compilerOptions": {
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"noFallthroughCasesInSwitch": true,
+		// The following are deliberately NOT enabled:
+		// - "exactOptionalPropertyTypes": adds friction for marginal benefit
+		// - "noImplicitOverride": ceremony without significant payoff
+	},
 }
 ```
 
@@ -58,13 +58,16 @@ Plus an ESLint rule banning `any`:
 ```jsonc
 // eslintrc, key rules
 {
-  "rules": {
-    "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/ban-ts-comment": ["error", {
-      "ts-ignore": true,        // forbidden
-      "ts-expect-error": false  // allowed
-    }]
-  }
+	"rules": {
+		"@typescript-eslint/no-explicit-any": "error",
+		"@typescript-eslint/ban-ts-comment": [
+			"error",
+			{
+				"ts-ignore": true, // forbidden
+				"ts-expect-error": false, // allowed
+			},
+		],
+	},
 }
 ```
 
@@ -76,7 +79,7 @@ Plus an ESLint rule banning `any`:
 
 **Banning `any`** is the slop-prevention lever. The agent's escape valve when types get hard is to cast to `any`. If `any` is a hard error, the agent must actually solve the type problem — which usually means writing better code (proper type guards, narrowing with `unknown`, defining the right interface). This is the single setting that most reduces "AI slop."
 
-**`@ts-expect-error` over `@ts-ignore`.** Both suppress type errors. The first requires a suppressed error to *actually exist* — so when the underlying code is fixed, `@ts-expect-error` self-clears (it becomes an error itself if there's nothing to expect). `@ts-ignore` silences indefinitely; suppressed errors accumulate and rot.
+**`@ts-expect-error` over `@ts-ignore`.** Both suppress type errors. The first requires a suppressed error to _actually exist_ — so when the underlying code is fixed, `@ts-expect-error` self-clears (it becomes an error itself if there's nothing to expect). `@ts-ignore` silences indefinitely; suppressed errors accumulate and rot.
 
 ### Alternatives considered
 
@@ -113,14 +116,14 @@ These rules genuinely prevent slop. The lint runs slower (~5-15 seconds vs. ~1 s
 
 ### Specific rules toggled on top of presets
 
-| Rule | Setting | Why |
-|---|---|---|
-| `import/order` | `error`, alphabetized within groups | Sorted imports help the agent and keep diffs clean |
-| `react-hooks/exhaustive-deps` | `error` (not warn) | Catches real bugs in effect dependencies |
-| `react/jsx-key` | `error` | Missing keys cause real React reconciliation bugs |
-| `no-console` | `error`, except `console.warn` and `console.error` | Forces intentional logging via the logger |
-| `@typescript-eslint/consistent-type-imports` | `error` | Separates type-only imports for tree-shaking and clarity |
-| `tailwindcss/no-arbitrary-value` | `error` | Discourages `bg-[#f00]` / `text-[13px]` so the design system stays consistent (see `FRONTEND_DESIGN.md`) |
+| Rule                                         | Setting                                            | Why                                                                                                      |
+| -------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `import/order`                               | `error`, alphabetized within groups                | Sorted imports help the agent and keep diffs clean                                                       |
+| `react-hooks/exhaustive-deps`                | `error` (not warn)                                 | Catches real bugs in effect dependencies                                                                 |
+| `react/jsx-key`                              | `error`                                            | Missing keys cause real React reconciliation bugs                                                        |
+| `no-console`                                 | `error`, except `console.warn` and `console.error` | Forces intentional logging via the logger                                                                |
+| `@typescript-eslint/consistent-type-imports` | `error`                                            | Separates type-only imports for tree-shaking and clarity                                                 |
+| `tailwindcss/no-arbitrary-value`             | `error`                                            | Discourages `bg-[#f00]` / `text-[13px]` so the design system stays consistent (see `FRONTEND_DESIGN.md`) |
 
 ### Alternatives considered
 
@@ -148,14 +151,14 @@ The default "Vitest + RTL + 80% coverage" advice produces test slop in vibe-code
 
 The bugs that actually ship in vibe-coded apps:
 
-| Bug class | Severity | How we catch it |
-|---|---|---|
-| Access-control bugs (a user reaching another user's data or an admin route) | High | Backend integration tests against the auth scaffold |
-| Data integrity (lost updates, broken migrations) | Medium-high | Backend integration tests; Drizzle migration tests |
-| Type-correct-but-semantically-wrong logic | Medium | Targeted unit tests via TDD |
-| UI rendering crashes | Lower | Error boundary catches; tests skipped |
+| Bug class                                                                   | Severity    | How we catch it                                     |
+| --------------------------------------------------------------------------- | ----------- | --------------------------------------------------- |
+| Access-control bugs (a user reaching another user's data or an admin route) | High        | Backend integration tests against the auth scaffold |
+| Data integrity (lost updates, broken migrations)                            | Medium-high | Backend integration tests; Drizzle migration tests  |
+| Type-correct-but-semantically-wrong logic                                   | Medium      | Targeted unit tests via TDD                         |
+| UI rendering crashes                                                        | Lower       | Error boundary catches; tests skipped               |
 
-TDD inverts the test-slop dynamic. Tests written *before* implementation drive the design — they describe the behavior the developer wants. When you can't write the test, the design is wrong; refactor instead of skipping the test. The `tdd` skill (pre-installed from the bundled skills pipeline) codifies the red-green-refactor methodology, is referenced by AGENTS.md for ad-hoc work, and is read automatically by `write-a-prd` and `run-plan` when the full pipeline is used.
+TDD inverts the test-slop dynamic. Tests written _before_ implementation drive the design — they describe the behavior the developer wants. When you can't write the test, the design is wrong; refactor instead of skipping the test. The `tdd` skill (pre-installed from the bundled skills pipeline) codifies the red-green-refactor methodology, is referenced by AGENTS.md for ad-hoc work, and is read automatically by `write-a-prd` and `run-plan` when the full pipeline is used.
 
 ### Concrete patterns
 
@@ -166,24 +169,24 @@ import { createTestServer } from './helpers';
 import { resetDb } from './helpers';
 
 describe('GET /api/orders', () => {
-  beforeEach(resetDb);
+	beforeEach(resetDb);
 
-  it('returns only the orders owned by the requesting customer', async () => {
-    const customerA = await createUser({ email: 'a@example.com', role: 'user' });
-    const customerB = await createUser({ email: 'b@example.com', role: 'user' });
-    await createOrder({ userId: customerA.id, description: 'Intro session' });
-    await createOrder({ userId: customerB.id, description: 'Follow-up session' });
+	it('returns only the orders owned by the requesting customer', async () => {
+		const customerA = await createUser({ email: 'a@example.com', role: 'user' });
+		const customerB = await createUser({ email: 'b@example.com', role: 'user' });
+		await createOrder({ userId: customerA.id, description: 'Intro session' });
+		await createOrder({ userId: customerB.id, description: 'Follow-up session' });
 
-    const server = createTestServer();
-    const res = await server.request('/api/orders', {
-      headers: { Cookie: await loginAs({ userId: customerA.id, role: 'user' }) },
-    });
+		const server = createTestServer();
+		const res = await server.request('/api/orders', {
+			headers: { Cookie: await loginAs({ userId: customerA.id, role: 'user' }) },
+		});
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.orders).toHaveLength(1);
-    expect(body.orders[0].description).toBe('Intro session');
-  });
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.orders).toHaveLength(1);
+		expect(body.orders[0].description).toBe('Intro session');
+	});
 });
 ```
 
@@ -268,13 +271,13 @@ flowchart LR
 
 Pre-commit must be fast enough that the agent doesn't get stuck waiting. CI is the safety net.
 
-| Check | Pre-commit | CI |
-|---|---|---|
-| Typecheck | Staged-file scope | Full project |
-| Lint | Staged-file scope | Full project |
-| Tests | `--related` | Full suite |
-| gitleaks | Staged content | Full git history |
-| Build | — | Yes |
+| Check     | Pre-commit        | CI               |
+| --------- | ----------------- | ---------------- |
+| Typecheck | Staged-file scope | Full project     |
+| Lint      | Staged-file scope | Full project     |
+| Tests     | `--related`       | Full suite       |
+| gitleaks  | Staged content    | Full git history |
+| Build     | —                 | Yes              |
 
 ### Alternatives considered
 
@@ -369,7 +372,7 @@ The starter ships a 7-section README:
 5. **Development workflow** — pre-commit hooks, TDD, AGENTS.md role
 6. **Deploy** — short overview that points to `DEPLOY.md` (the full go-live runbook: external accounts + first deploy)
 7. **Skills** — list of the pre-installed skills and the recommended `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan` workflow
-8. *(Pre-launch only)* **First-feature tutorial** — a contact-form walkthrough (public endpoint → zod validation → `rateLimit()` + honeypot → email via the Resend wrapper); tracked in `TODO.md`
+8. _(Pre-launch only)_ **First-feature tutorial** — a contact-form walkthrough (public endpoint → zod validation → `rateLimit()` + honeypot → email via the Resend wrapper); tracked in `TODO.md`
 
 ---
 
@@ -395,7 +398,7 @@ Apply one filter, borrowed from Addy Osmani's [AGENTS.md as a protocol file](htt
 
 The starter ships `AGENTS.md` with five short sections, each earning its place against the filter. `CLAUDE.md` is a symlink to `AGENTS.md` so Claude Code picks up the same content.
 
-**1. Non-Negotiables.** Collaboration rules the agent cannot infer from code: surface assumptions, stop on conflicts, push back when you disagree, prefer the boring solution, touch only what was asked. About *how* the agent behaves, not *what* the codebase looks like.
+**1. Non-Negotiables.** Collaboration rules the agent cannot infer from code: surface assumptions, stop on conflicts, push back when you disagree, prefer the boring solution, touch only what was asked. About _how_ the agent behaves, not _what_ the codebase looks like.
 
 **2. Quality Expectations.** One short paragraph setting tone ("this codebase will outlive you — fight entropy"). Deliberately brief; tone-setting has diminishing returns and the article's caution about "general style guides" applies past a paragraph.
 
@@ -410,7 +413,7 @@ The starter ships `AGENTS.md` with five short sections, each earning its place a
 The article warns hardest against the "context dump" pattern. The starter omits, by design:
 
 - **Stack declaration.** `package.json` is authoritative; `npm ls` is faster than re-reading a list that goes stale. Stack rationale lives in this doc and the sibling design docs.
-- **Library do/don't lists.** "Use shadcn's `Table`, not TanStack Table until you need it" / "Tailwind tokens over arbitrary values" / "Drizzle, not raw `pg`" are discoverable from the dependency tree and existing usage. Surfacing them as rules competes with rules that *aren't* discoverable. Library-specific patterns live in skills (`shadcn-patterns`, `tailwind`, `stripe`, `drizzle-postgres`) — created reactively as failure modes appear, not speculatively upfront.
+- **Library do/don't lists.** "Use shadcn's `Table`, not TanStack Table until you need it" / "Tailwind tokens over arbitrary values" / "Drizzle, not raw `pg`" are discoverable from the dependency tree and existing usage. Surfacing them as rules competes with rules that _aren't_ discoverable. Library-specific patterns live in skills (`shadcn-patterns`, `tailwind`, `stripe`, `drizzle-postgres`) — created reactively as failure modes appear, not speculatively upfront.
 - **Build-and-verify command list.** `package.json` scripts are the source of truth. The `tdd` and `run-plan` skills already brief the agent on the verify gate; AGENTS.md should not duplicate the commands.
 - **Directory tours and architecture overviews.** `/docs/*_DESIGN.md` and `CONTEXT.md` handle this, loaded on demand.
 - **Skill catalog as freeform prose.** Claude Code surfaces skill descriptions automatically when triggered. The README documents the recommended `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan` workflow for humans; AGENTS.md does not need to restate it.
@@ -442,15 +445,15 @@ The starter ships with the full pipeline pre-installed. The builder doesn't pick
 
 Pre-installed skills:
 
-| Skill | Role |
-|---|---|
-| `grill-with-docs` | Stress-tests an idea against the existing domain model, sharpening terminology and updating `CONTEXT.md` / ADRs inline. Entry point for non-trivial features. |
-| `grill-me` | Adversarial grilling of a plan/design without the doc-update step; the lighter sibling of `grill-with-docs`. |
-| `write-a-prd` | Captures the resolved design as a PRD. Auto-invokes `grill-with-docs` if no grilling session has run, so it's also a valid entry point for users who want a simpler flow. |
-| `prd-to-plan` | Breaks the PRD into tracer-bullet phases with confidence-scored acceptance criteria. |
-| `run-plan` | Executes the plan in a fresh conversation by delegating phases to specialized sub-agents. |
-| `tdd` | Red-green-refactor methodology. Never invoked directly — read by `write-a-prd` while authoring; every Code sub-agent spawned by `run-plan` is briefed to apply it; referenced by `AGENTS.md` for ad-hoc work outside the pipeline. |
-| `commit` | Produces a Conventional Commits message from staged changes. Invoked automatically by `run-plan` after each phase; this feeds the `release-please` automation that maintains `CHANGELOG.md`. |
+| Skill             | Role                                                                                                                                                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grill-with-docs` | Stress-tests an idea against the existing domain model, sharpening terminology and updating `CONTEXT.md` / ADRs inline. Entry point for non-trivial features.                                                                      |
+| `grill-me`        | Adversarial grilling of a plan/design without the doc-update step; the lighter sibling of `grill-with-docs`.                                                                                                                       |
+| `write-a-prd`     | Captures the resolved design as a PRD. Auto-invokes `grill-with-docs` if no grilling session has run, so it's also a valid entry point for users who want a simpler flow.                                                          |
+| `prd-to-plan`     | Breaks the PRD into tracer-bullet phases with confidence-scored acceptance criteria.                                                                                                                                               |
+| `run-plan`        | Executes the plan in a fresh conversation by delegating phases to specialized sub-agents.                                                                                                                                          |
+| `tdd`             | Red-green-refactor methodology. Never invoked directly — read by `write-a-prd` while authoring; every Code sub-agent spawned by `run-plan` is briefed to apply it; referenced by `AGENTS.md` for ad-hoc work outside the pipeline. |
+| `commit`          | Produces a Conventional Commits message from staged changes. Invoked automatically by `run-plan` after each phase; this feeds the `release-please` automation that maintains `CHANGELOG.md`.                                       |
 
 The ideal workflow is `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan`, with steps 1–3 in one conversation and step 4 in a fresh one. See [`semi-sentient/skills-workflow` docs/WORKFLOW.md](https://github.com/semi-sentient/skills-workflow/blob/main/docs/WORKFLOW.md) for the full walkthrough.
 

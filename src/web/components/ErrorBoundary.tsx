@@ -1,3 +1,5 @@
+import { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/web/components/ui/button';
 import {
 	Card,
@@ -6,8 +8,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/web/components/ui/card';
-import { Component } from 'react';
-import type { ErrorInfo, ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
 	children: ReactNode;
@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
  */
 function ErrorPage({ error }: { error: Error }) {
 	return (
-		<main className="flex min-h-screen items-center justify-center bg-background p-4 md:p-8">
+		<main className="bg-background flex min-h-screen items-center justify-center p-4 md:p-8">
 			<Card className="w-full max-w-md">
 				<CardHeader>
 					<CardTitle>Something went wrong. Please reload.</CardTitle>
@@ -65,7 +65,7 @@ function ErrorPage({ error }: { error: Error }) {
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
 					{import.meta.env.DEV ? (
-						<pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs text-muted-foreground">
+						<pre className="bg-muted text-muted-foreground max-h-64 overflow-auto rounded-md p-3 text-xs">
 							{error.stack ?? error.message}
 						</pre>
 					) : null}

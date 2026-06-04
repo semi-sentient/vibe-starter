@@ -1,7 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { authCodes } from '@/db/schema';
 import type { TestServer } from '@/server/test/helpers/createTestServer';
-import { eq } from 'drizzle-orm';
 
 const json = { 'content-type': 'application/json' };
 

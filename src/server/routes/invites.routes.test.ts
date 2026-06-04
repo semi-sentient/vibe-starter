@@ -1,11 +1,11 @@
+import { eq } from 'drizzle-orm';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
 import { invites } from '@/db/schema';
 import { env } from '@/env';
 import { createUser } from '@/server/test/factories/users';
 import { createTestServer } from '@/server/test/helpers/createTestServer';
 import { loginAs } from '@/server/test/helpers/loginAs';
-import { eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const json = { 'content-type': 'application/json' };
 

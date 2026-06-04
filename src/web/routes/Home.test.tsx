@@ -1,11 +1,11 @@
-import { Home } from '@/web/routes/Home';
-import { server } from '@/web/test/msw-server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { AuthProvider } from '@/web/auth/AuthProvider';
+import { Home } from '@/web/routes/Home';
+import { server } from '@/web/test/msw-server';
 
 function renderHome() {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

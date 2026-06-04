@@ -1,3 +1,4 @@
+import { Route, Routes } from 'react-router';
 import { Layout } from '@/web/components/Layout';
 import { Checkout } from '@/web/routes/Checkout';
 import { CheckoutCancel } from '@/web/routes/CheckoutCancel';
@@ -5,7 +6,6 @@ import { CheckoutSuccess } from '@/web/routes/CheckoutSuccess';
 import { Home } from '@/web/routes/Home';
 import { Login } from '@/web/routes/Login';
 import { Welcome } from '@/web/routes/Welcome';
-import { Route, Routes } from 'react-router';
 
 /**
  * App router. Holds the `<Routes>` tree; the router provider and data/query

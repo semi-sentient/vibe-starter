@@ -1,9 +1,9 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from '@/env';
 import { createOrder } from '@/server/test/factories/orders';
 import { setupUsers } from '@/server/test/factories/users';
 import { createTestServer } from '@/server/test/helpers/createTestServer';
 import { loginAs } from '@/server/test/helpers/loginAs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * ANCHOR TEST #2 — the ownership / access-control invariant.

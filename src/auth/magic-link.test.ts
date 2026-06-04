@@ -1,11 +1,11 @@
+import { eq } from 'drizzle-orm';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInvite } from '@/auth/invites';
 import { requestCode, verifyCode } from '@/auth/magic-link';
 import { db } from '@/db/client';
 import { authCodes, invites, sessions, users } from '@/db/schema';
 import { env } from '@/env';
 import { createUser } from '@/server/test/factories/users';
-import { eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // `env.ADMIN_EMAILS` is a parsed-once array; snapshot and restore it so the
 // admin-allowlist tests can mutate it in isolation without leaking across tests.

@@ -1,3 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { client } from '@/web/api/client';
 import { Button } from '@/web/components/ui/button';
 import {
@@ -7,9 +10,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/web/components/ui/card';
-import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router';
 
 /** How often to re-poll the order while it is still `pending` (ms). */
 const POLL_INTERVAL_MS = 1500;

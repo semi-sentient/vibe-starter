@@ -1,11 +1,11 @@
+import { eq } from 'drizzle-orm';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
 import { orders } from '@/db/schema';
 import { stripe } from '@/payments/stripe';
 import { createUser } from '@/server/test/factories/users';
 import { createTestServer } from '@/server/test/helpers/createTestServer';
 import { loginAs } from '@/server/test/helpers/loginAs';
-import { eq } from 'drizzle-orm';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // `stripe.checkout.sessions.create` is spied so NO network call is made — it
 // returns a fake hosted-Checkout session. The route still runs the real

@@ -1,5 +1,5 @@
-import { createTestServer } from '@/server/test/helpers/createTestServer';
 import { describe, expect, it } from 'vitest';
+import { createTestServer } from '@/server/test/helpers/createTestServer';
 
 describe('GET /api/health', () => {
 	it('reports the database is up when it is reachable', async () => {

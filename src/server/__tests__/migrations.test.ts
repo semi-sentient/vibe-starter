@@ -1,6 +1,6 @@
-import { db } from '@/db/client';
 import { sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
+import { db } from '@/db/client';
 
 /**
  * The application tables the checked-in migrations are expected to produce on a

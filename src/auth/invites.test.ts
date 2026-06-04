@@ -1,9 +1,9 @@
+import { eq } from 'drizzle-orm';
+import { describe, expect, it } from 'vitest';
 import { createInvite, consumeInvite } from '@/auth/invites';
 import { db } from '@/db/client';
 import { invites } from '@/db/schema';
 import { createUser } from '@/server/test/factories/users';
-import { eq } from 'drizzle-orm';
-import { describe, expect, it } from 'vitest';
 
 describe('invites', () => {
 	it('createInvite persists a pending invite keyed by email', async () => {

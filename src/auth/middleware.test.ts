@@ -1,10 +1,10 @@
+import { Hono } from 'hono';
+import { describe, expect, it } from 'vitest';
 import { setSessionCookie } from '@/auth/cookie';
 import { requireAuth, requireRole } from '@/auth/middleware';
 import { createSession, destroySession } from '@/auth/sessions';
 import type { AppContext } from '@/server/app';
 import { createUser } from '@/server/test/factories/users';
-import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
 
 /**
  * A throwaway app exercising the auth middleware in isolation:

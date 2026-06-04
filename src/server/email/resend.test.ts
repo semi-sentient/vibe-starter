@@ -1,6 +1,6 @@
-import { logger } from '@/server/logger';
-import { sendMagicCode } from '@/server/email/resend';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { sendMagicCode } from '@/server/email/resend';
+import { logger } from '@/server/logger';
 
 // `RESEND_API_KEY` is unset in the test env (`.env.test` omits it), so these
 // tests exercise the dev fallback — no network, no Resend client. P8 routes that

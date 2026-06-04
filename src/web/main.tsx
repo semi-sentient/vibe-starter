@@ -1,12 +1,12 @@
-import { App } from '@/web/App';
-import { queryClient } from '@/web/api/query';
-import { AuthProvider } from '@/web/auth/AuthProvider';
-import { ErrorBoundary } from '@/web/components/ErrorBoundary';
-import '@/web/globals.css';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
+import { queryClient } from '@/web/api/query';
+import { App } from '@/web/App';
+import { AuthProvider } from '@/web/auth/AuthProvider';
+import { ErrorBoundary } from '@/web/components/ErrorBoundary';
+import '@/web/globals.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

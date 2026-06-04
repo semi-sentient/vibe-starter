@@ -1,9 +1,9 @@
-import { env } from '@/env';
-import { app } from '@/server/app';
-import { logger, loggerMiddleware } from '@/server/logger';
 import { Hono } from 'hono';
 import type { Logger } from 'pino';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { env } from '@/env';
+import { app } from '@/server/app';
+import { logger, loggerMiddleware } from '@/server/logger';
 
 /**
  * Logging (P8): `loggerMiddleware` request logs + the body-safety guarantee, plus
@@ -18,8 +18,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 /** Spy on the per-request child the middleware creates. Returns the captured method spies. */
 function spyOnRequestLogger() {
 	const child = logger.child({});
-	const info = vi.spyOn(child, 'info').mockReturnValue(undefined as unknown as void);
-	const error = vi.spyOn(child, 'error').mockReturnValue(undefined as unknown as void);
+	const info = vi.spyOn(child, 'info').mockReturnValue(undefined);
+	const error = vi.spyOn(child, 'error').mockReturnValue(undefined);
 	// pino types `child()` as `Logger<string, boolean>`, but `logger.child({})`
 	// resolves to `Logger<never, boolean>` (no custom levels); the two differ only
 	// by an unused generic, so cast the stub's return to the method's declared type.
@@ -91,7 +91,10 @@ describe('app.onError', () => {
 		const body = (await res.json()) as { error: string; stack?: string };
 		expect(body.error).toBe('kaboom');
 		expect(body.stack).toEqual(expect.any(String));
-		expect(error).toHaveBeenCalledWith(expect.objectContaining({ err: expect.any(Error) }), expect.any(String));
+		expect(error).toHaveBeenCalledWith(
+			expect.objectContaining({ err: expect.any(Error) }),
+			expect.any(String)
+		);
 	});
 
 	it('returns a generic 500 (no message/stack) in production', async () => {

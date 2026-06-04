@@ -1,11 +1,11 @@
+import { eq } from 'drizzle-orm';
+import type { MiddlewareHandler } from 'hono';
 import { readSessionCookie } from '@/auth/cookie';
 import { getSession } from '@/auth/sessions';
 import type { AuthUser } from '@/auth/types';
 import { db } from '@/db/client';
 import { users } from '@/db/schema';
 import type { AppContext } from '@/server/app';
-import { eq } from 'drizzle-orm';
-import type { MiddlewareHandler } from 'hono';
 
 /**
  * Gates a route behind a valid session.
@@ -53,8 +53,11 @@ export function requireRole(role: AuthUser['role']): MiddlewareHandler<AppContex
 		// resolved a user; otherwise it returns its own 401 Response, which we
 		// propagate unchanged.
 		let authed = false;
-		const unauthorized = await auth(c, async () => {
+		const unauthorized = await auth(c, () => {
 			authed = true;
+			// `requireAuth`'s `next` is typed `() => Promise<void>`; set the flag
+			// synchronously (before the check below) and hand back a resolved promise.
+			return Promise.resolve();
 		});
 		if (!authed) return unauthorized; // the 401 from requireAuth.
 

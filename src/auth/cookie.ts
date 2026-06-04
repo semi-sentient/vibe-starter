@@ -1,7 +1,7 @@
-import { env } from '@/env';
 import type { Context } from 'hono';
-import type { CookieOptions } from 'hono/utils/cookie';
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
+import type { CookieOptions } from 'hono/utils/cookie';
+import { env } from '@/env';
 
 /** The session cookie name. The opaque `sid` (session id) is its value. */
 const SESSION_COOKIE = 'sid';

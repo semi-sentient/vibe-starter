@@ -1,7 +1,7 @@
+import { lt, lte } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { authCodes, rateLimitCounters, sessions } from '@/db/schema';
 import { logger } from '@/server/logger';
-import { lt, lte } from 'drizzle-orm';
 
 /**
  * Retention for spent rate-limit counters. The shipped limiter uses a 10-minute
@@ -46,7 +46,9 @@ export const expireSessions: Worker = async () => {
  */
 export const cleanRateLimitCounters: Worker = async () => {
 	const cutoff = new Date(Date.now() - RATE_LIMIT_COUNTER_TTL_MS);
-	const result = await db.delete(rateLimitCounters).where(lt(rateLimitCounters.windowStart, cutoff));
+	const result = await db
+		.delete(rateLimitCounters)
+		.where(lt(rateLimitCounters.windowStart, cutoff));
 	return result.rowCount ?? 0;
 };
 

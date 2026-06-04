@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { Button } from '@/web/components/ui/button';
 import {
 	Card,
@@ -6,7 +7,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/web/components/ui/card';
-import { Link } from 'react-router';
 
 /**
  * Checkout cancel page (`/checkout/cancel`). Stripe redirects here when the user

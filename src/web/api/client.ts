@@ -1,6 +1,6 @@
-import type { AppType } from '@/server/app';
-import { clientEnv } from '@/env.client';
 import { hc } from 'hono/client';
+import { clientEnv } from '@/env.client';
+import type { AppType } from '@/server/app';
 
 /**
  * Typed Hono RPC client. Pointed at the ORIGIN (default `/`) because the server

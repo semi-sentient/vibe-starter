@@ -1,8 +1,8 @@
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 import * as schema from '@/db/schema';
 import { env } from '@/env';
 import { logger } from '@/server/logger';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
 
 /**
  * The single shared Postgres connection pool. Built from `env.DATABASE_URL`,

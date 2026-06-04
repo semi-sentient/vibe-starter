@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query';
 import { client } from '@/web/api/client';
 import { Button } from '@/web/components/ui/button';
 import {
@@ -7,7 +8,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/web/components/ui/card';
-import { useMutation } from '@tanstack/react-query';
 
 /**
  * Checkout page (`/checkout`, behind auth). The frontend's payment job is small:
@@ -26,7 +26,7 @@ export function Checkout() {
 			if (!res.ok) {
 				throw new Error('Could not start checkout. Please try again.');
 			}
-			const body = (await res.json()) as { url: string };
+			const body = await res.json();
 			return body.url;
 		},
 		onSuccess: (url) => {
@@ -54,7 +54,7 @@ export function Checkout() {
 						{checkout.isPending ? 'Redirecting…' : 'Buy now'}
 					</Button>
 					{checkout.isError ? (
-						<p className="text-sm text-destructive" role="alert">
+						<p className="text-destructive text-sm" role="alert">
 							{checkout.error.message}
 						</p>
 					) : null}

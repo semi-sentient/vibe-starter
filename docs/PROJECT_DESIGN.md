@@ -12,18 +12,18 @@ This document captures the **project-level** decisions: audience, scope, philoso
 
 ## Decision summary
 
-| Area | Decision | Defended in |
-|---|---|---|
-| Audience | A solo (or tiny-team) non-engineer building a side project with an AI agent | This doc |
-| Scope | Full-stack (frontend + backend + database + payments) | This doc |
-| Tenancy | Single-tenant by default; multi-tenancy is a documented escape hatch | This doc |
-| Distribution | GitHub template repository | This doc |
-| Repo name | `vibe-starter` | This doc |
-| License | MIT (`LICENSE` ships in the repo) | This doc |
-| Versioning | SemVer starting at `1.0.0` | This doc |
-| Changelog | Keep-a-Changelog format, automated via `release-please` | This doc |
-| Launch readiness | "Ready for real users?" self-review checklist | This doc |
-| Future variants | Lightweight forks acknowledged but deferred | This doc |
+| Area             | Decision                                                                    | Defended in |
+| ---------------- | --------------------------------------------------------------------------- | ----------- |
+| Audience         | A solo (or tiny-team) non-engineer building a side project with an AI agent | This doc    |
+| Scope            | Full-stack (frontend + backend + database + payments)                       | This doc    |
+| Tenancy          | Single-tenant by default; multi-tenancy is a documented escape hatch        | This doc    |
+| Distribution     | GitHub template repository                                                  | This doc    |
+| Repo name        | `vibe-starter`                                                              | This doc    |
+| License          | MIT (`LICENSE` ships in the repo)                                           | This doc    |
+| Versioning       | SemVer starting at `1.0.0`                                                  | This doc    |
+| Changelog        | Keep-a-Changelog format, automated via `release-please`                     | This doc    |
+| Launch readiness | "Ready for real users?" self-review checklist                               | This doc    |
+| Future variants  | Lightweight forks acknowledged but deferred                                 | This doc    |
 
 ---
 
@@ -59,15 +59,15 @@ We can fork later. `vibe-starter` is the maximalist version; if a lighter varian
 
 ### Explicitly out of scope
 
-| Excluded | Reason |
-|---|---|
+| Excluded                                                   | Reason                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Multi-tenancy (one business serving many other businesses) | This is a single-tenant app (one business, many user accounts). A true multi-tenant SaaS is out of scope by default; the escape hatch (add a `tenantId` FK and scope every query by it) is documented so you can add it if you ever need it. |
-| Internationalization (i18n) | Most side projects ship in one language. Adding `react-i18next` later is mechanical. Pre-paying the `t('key')` tax across the whole app is a poor trade. Documented upgrade path provided. |
-| PWA / offline support | Mobile-responsive is required (Tailwind handles it); an installable PWA is out of scope. |
-| End-to-end tests (Playwright, Cypress) | Component tests via React Testing Library + integration tests via in-process Hono cover the high-value cases. E2E is too much rope for this audience. |
-| Storybook / component documentation tooling | Overkill at side-project scale. |
-| Frontend telemetry / RUM | Nothing shipped by default. Can be added later as a single `<script>` tag if needed. |
-| External secret management (Doppler, Vault, etc.) | Out of scope; `.env` + Railway env vars cover the use case. Documented pointer if you ever need more. |
+| Internationalization (i18n)                                | Most side projects ship in one language. Adding `react-i18next` later is mechanical. Pre-paying the `t('key')` tax across the whole app is a poor trade. Documented upgrade path provided.                                                   |
+| PWA / offline support                                      | Mobile-responsive is required (Tailwind handles it); an installable PWA is out of scope.                                                                                                                                                     |
+| End-to-end tests (Playwright, Cypress)                     | Component tests via React Testing Library + integration tests via in-process Hono cover the high-value cases. E2E is too much rope for this audience.                                                                                        |
+| Storybook / component documentation tooling                | Overkill at side-project scale.                                                                                                                                                                                                              |
+| Frontend telemetry / RUM                                   | Nothing shipped by default. Can be added later as a single `<script>` tag if needed.                                                                                                                                                         |
+| External secret management (Doppler, Vault, etc.)          | Out of scope; `.env` + Railway env vars cover the use case. Documented pointer if you ever need more.                                                                                                                                        |
 
 ---
 
@@ -76,16 +76,16 @@ We can fork later. `vibe-starter` is the maximalist version; if a lighter varian
 Five principles that shape every other decision in this design:
 
 **1. Opinionated defaults beat configurability.**
-Every choice the starter doesn't make becomes a choice an agent makes. Agents trained on diverse codebases will pick *plausible* answers, but the variance across projects is the source of "AI slop." We make the choices upfront, in writing, so the agent inherits them.
+Every choice the starter doesn't make becomes a choice an agent makes. Agents trained on diverse codebases will pick _plausible_ answers, but the variance across projects is the source of "AI slop." We make the choices upfront, in writing, so the agent inherits them.
 
 **2. Modern, maintainable output — not throwaway slop.**
-The goal is an app that *could* be promoted to a real product: used by real customers, and later picked up and maintained by a real developer without an archaeological dig. Choices are justified on their own merits — modern and widely used, strong agent training data, good-looking defaults, no proprietary lock-in — not because they mirror anyone's existing stack. The stack (Vite/React/Tailwind/shadcn on the frontend, Hono/Postgres/Drizzle on the backend) is deliberately Node-first and approachable end to end, because forcing an unfamiliar or fragmented toolchain onto a solo non-engineer would be hostile.
+The goal is an app that _could_ be promoted to a real product: used by real customers, and later picked up and maintained by a real developer without an archaeological dig. Choices are justified on their own merits — modern and widely used, strong agent training data, good-looking defaults, no proprietary lock-in — not because they mirror anyone's existing stack. The stack (Vite/React/Tailwind/shadcn on the frontend, Hono/Postgres/Drizzle on the backend) is deliberately Node-first and approachable end to end, because forcing an unfamiliar or fragmented toolchain onto a solo non-engineer would be hostile.
 
 **3. Static analysis carries the load that humans can't.**
 Strict TypeScript, zero-warning ESLint, and `noUncheckedIndexedAccess` prevent classes of bugs at compile time. Without these, agents and non-engineers ship type-coerced code that fails at runtime in ways nobody catches before users do.
 
 **4. Access control is a primitive, not an exercise.**
-The auth scaffold ships in the starter: magic-link login, `admin`/`user` roles, and an ownership rule so **users see and edit only their own data**, with admin routes gated behind `requireRole('admin')`. A builder should *use* this scaffold, not invent it. The most likely high-severity failure mode — a customer reads or mutates another customer's order because a query wasn't scoped to the current user, or a `user` reaches an admin-only route — is mitigated by making correct-by-default the path of least resistance.
+The auth scaffold ships in the starter: magic-link login, `admin`/`user` roles, and an ownership rule so **users see and edit only their own data**, with admin routes gated behind `requireRole('admin')`. A builder should _use_ this scaffold, not invent it. The most likely high-severity failure mode — a customer reads or mutates another customer's order because a query wasn't scoped to the current user, or a `user` reaches an admin-only route — is mitigated by making correct-by-default the path of least resistance.
 
 **5. The agent is a first-class user.**
 The starter ships `AGENTS.md` with stack declarations, do/don't lists, and a build-and-verify protocol. Skills are referenced explicitly. The agent's context window is treated as a designed surface — not an afterthought. If an agent has to guess about the project, we have failed to write the docs.
@@ -200,37 +200,45 @@ The starter's README includes a one-paragraph note explaining this. Major releas
 
 ## Ready for real users?
 
-Before you launch to real customers — especially before you take real payments — run this short self-review. (For the *setup* that gets you to a live deployment — creating your Railway / Resend / Stripe accounts, verifying a sending domain, wiring the Stripe webhook, connecting a custom domain — follow `DEPLOY.md`; this checklist is the *gate* you run once that's done.) It's your own pre-launch checklist, not an external review. If anything below is unchecked, you're not ready yet. (A `LAUNCH_CHECKLIST.md` may ship in the repo as a copy of this list to tick through.)
+Before you launch to real customers — especially before you take real payments — run this short self-review. (For the _setup_ that gets you to a live deployment — creating your Railway / Resend / Stripe accounts, verifying a sending domain, wiring the Stripe webhook, connecting a custom domain — follow `DEPLOY.md`; this checklist is the _gate_ you run once that's done.) It's your own pre-launch checklist, not an external review. If anything below is unchecked, you're not ready yet. (A `LAUNCH_CHECKLIST.md` may ship in the repo as a copy of this list to tick through.)
 
 **Access control is intact.**
+
 - Admin-only routes are gated with `requireRole('admin')`.
 - Users can only see and edit their own rows — queries for user-owned data filter by the current user (no IDOR; a customer can never reach another customer's order).
 - The access-control anchor test passes. (See `BACKEND_DESIGN.md`.)
 
 **Secrets are safe.**
+
 - Every secret lives in an environment variable, never in code. `gitleaks` reports clean.
 - `.env` is not committed (it's gitignored).
 
 **Stripe is production-ready.**
+
 - Switched from test-mode to **live-mode** keys.
 - The webhook signature is verified against the raw request body, and you've tested the full flow end-to-end with a real card.
 - Payment status comes from the webhook, never from the client redirect.
 
 **The database is protected.**
+
 - Backups are enabled (Railway Postgres backup add-on) and you know how to restore from one.
 
 **Production config is correct.**
+
 - All required env vars are set in the Railway production environment.
 - The app fails loudly on startup if anything is missing or malformed (zod env validation).
 
 **You can see what's happening.**
+
 - The root error boundary works (the app shows a friendly error, not a white screen).
 - Structured logging is on and you know how to find errors in the Railway logs.
 
 **It works on a phone.**
+
 - A quick pass on a real phone or device emulator — customers will mostly be on mobile.
 
 **Legal & safety basics.**
+
 - A privacy policy and terms of service are published.
 - **If your app handles children's or other sensitive personal data:** get the appropriate consent (e.g., **parental consent** before collecting anything about a child) and collect the **minimum** data you actually need, deleting what you don't.
 

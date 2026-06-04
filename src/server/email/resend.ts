@@ -1,6 +1,6 @@
+import { Resend } from 'resend';
 import { env } from '@/env';
 import { logger } from '@/server/logger';
-import { Resend } from 'resend';
 
 const FROM = 'vibe-starter <onboarding@resend.dev>';
 const SUBJECT = 'Your sign-in code';

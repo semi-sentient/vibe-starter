@@ -1,7 +1,7 @@
-import { useAuth } from '@/web/auth/AuthProvider';
-import { Button } from '@/web/components/ui/button';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { useAuth } from '@/web/auth/AuthProvider';
+import { Button } from '@/web/components/ui/button';
 
 interface LayoutProps {
 	children?: ReactNode;
@@ -25,7 +25,7 @@ export function Layout({ children }: LayoutProps) {
 	}
 
 	return (
-		<div className="flex min-h-screen flex-col bg-background text-foreground">
+		<div className="bg-background text-foreground flex min-h-screen flex-col">
 			<header className="border-b">
 				<nav className="mx-auto flex w-full max-w-5xl flex-col gap-2 p-4 md:flex-row md:items-center md:justify-between md:p-6">
 					<div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
@@ -39,7 +39,7 @@ export function Layout({ children }: LayoutProps) {
 					</div>
 					<div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
 						{user ? (
-							<span className="text-sm text-muted-foreground">{user.email}</span>
+							<span className="text-muted-foreground text-sm">{user.email}</span>
 						) : null}
 						<Button
 							onClick={() => void handleSignOut()}

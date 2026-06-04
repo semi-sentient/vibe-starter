@@ -1,7 +1,7 @@
+import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/web/auth/AuthProvider';
 import { Button } from '@/web/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader } from '@/web/components/ui/card';
-import { Link, useNavigate } from 'react-router';
 
 /**
  * The signed-in landing page (`/app`), shown after a successful login. The

@@ -1,5 +1,5 @@
-import { env } from '@/env';
 import type { MiddlewareHandler } from 'hono';
+import { env } from '@/env';
 
 /** HTTP methods that don't mutate state and so skip the Origin check. */
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);

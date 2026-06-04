@@ -1,12 +1,12 @@
-import { AuthProvider } from '@/web/auth/AuthProvider';
-import { Layout } from '@/web/components/Layout';
-import { server } from '@/web/test/msw-server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
+import { AuthProvider } from '@/web/auth/AuthProvider';
+import { Layout } from '@/web/components/Layout';
+import { server } from '@/web/test/msw-server';
 
 function renderLayout(children?: ReactNode) {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

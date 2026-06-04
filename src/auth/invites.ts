@@ -1,6 +1,6 @@
+import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { invites } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 
 type Invite = typeof invites.$inferSelect;
 type Role = Invite['role'];

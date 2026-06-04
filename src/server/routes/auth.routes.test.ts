@@ -1,9 +1,9 @@
+import { eq } from 'drizzle-orm';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/db/client';
 import { authCodes } from '@/db/schema';
 import { env } from '@/env';
 import { createTestServer } from '@/server/test/helpers/createTestServer';
-import { eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Magic-link sending falls back to console in tests (no RESEND_API_KEY); silence it.
 beforeEach(() => {

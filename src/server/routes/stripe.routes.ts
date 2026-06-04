@@ -1,6 +1,6 @@
+import { Hono } from 'hono';
 import { handleWebhookEvent } from '@/payments/stripe';
 import type { AppContext } from '@/server/app';
-import { Hono } from 'hono';
 
 /**
  * Stripe webhook router, mounted at `/api/stripe` (the app's `.basePath('/api')`

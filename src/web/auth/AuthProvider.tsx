@@ -1,7 +1,7 @@
-import { client } from '@/web/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
+import { client } from '@/web/api/client';
 
 /**
  * The signed-in user as the browser sees it. This is the JSON-serialized
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		queryFn: async () => {
 			const res = await client.api.auth.me.$get();
 			if (!res.ok) return null;
-			const body = (await res.json()) as { user: AuthUser };
+			const body = await res.json();
 			return body.user;
 		},
 		queryKey: AUTH_ME_KEY,

@@ -1,5 +1,5 @@
-import { startWorkers, stopWorkers } from '@/server/workers/start';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { startWorkers, stopWorkers } from '@/server/workers/start';
 
 afterEach(() => {
 	// Always clear whatever a test scheduled so intervals never leak into the rest

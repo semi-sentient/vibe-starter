@@ -1,9 +1,9 @@
+import { eq } from 'drizzle-orm';
+import { describe, expect, it } from 'vitest';
 import { createSession, destroySession, getSession } from '@/auth/sessions';
 import { db } from '@/db/client';
 import { sessions } from '@/db/schema';
 import { createUser } from '@/server/test/factories/users';
-import { eq } from 'drizzle-orm';
-import { describe, expect, it } from 'vitest';
 
 describe('createSession', () => {
 	it('inserts a session row for the user and returns its opaque id', async () => {

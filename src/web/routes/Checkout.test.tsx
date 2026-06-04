@@ -1,10 +1,10 @@
-import { Checkout } from '@/web/routes/Checkout';
-import { server } from '@/web/test/msw-server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Checkout } from '@/web/routes/Checkout';
+import { server } from '@/web/test/msw-server';
 
 // The component redirects via `window.location.href = url`. We can't let happy-dom
 // actually navigate, but we must keep the real `location` otherwise (its `origin`

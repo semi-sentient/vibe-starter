@@ -1,9 +1,9 @@
 import { serve } from '@hono/node-server';
+import { app } from './app';
 import { db } from '@/db/client';
 import { env } from '@/env';
 import { logger } from '@/server/logger';
 import { startWorkers, stopWorkers } from '@/server/workers/start';
-import { app } from './app';
 
 // Importing `env` validates the server environment at boot; a missing or malformed
 // required variable (e.g. DATABASE_URL) aborts in `src/env.ts` before we get here.

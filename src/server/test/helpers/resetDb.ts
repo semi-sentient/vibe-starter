@@ -1,5 +1,5 @@
-import { db } from '@/db/client';
 import { sql } from 'drizzle-orm';
+import { db } from '@/db/client';
 
 /**
  * Truncates every application table in the test database, resetting identity

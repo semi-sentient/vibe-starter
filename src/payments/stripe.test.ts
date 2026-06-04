@@ -1,11 +1,11 @@
-import { db } from '@/db/client';
-import { orders } from '@/db/schema';
-import { createCheckoutSession, handleWebhookEvent, stripe } from '@/payments/stripe';
-import { env } from '@/env';
-import { createOrder } from '@/server/test/factories/orders';
-import { createUser } from '@/server/test/factories/users';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { db } from '@/db/client';
+import { orders } from '@/db/schema';
+import { env } from '@/env';
+import { createCheckoutSession, handleWebhookEvent, stripe } from '@/payments/stripe';
+import { createOrder } from '@/server/test/factories/orders';
+import { createUser } from '@/server/test/factories/users';
 
 /**
  * Builds a raw body + a VALID `stripe-signature` header for a

@@ -1,8 +1,8 @@
+import { and, eq } from 'drizzle-orm';
+import Stripe from 'stripe';
 import { db } from '@/db/client';
 import { orders, users } from '@/db/schema';
 import { env } from '@/env';
-import { and, eq } from 'drizzle-orm';
-import Stripe from 'stripe';
 
 /**
  * The shipped demo line item. The starter wires ONE placeholder purchase so the

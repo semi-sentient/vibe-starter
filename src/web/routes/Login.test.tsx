@@ -1,11 +1,11 @@
-import { AuthProvider } from '@/web/auth/AuthProvider';
-import { Login } from '@/web/routes/Login';
-import { server } from '@/web/test/msw-server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
+import { AuthProvider } from '@/web/auth/AuthProvider';
+import { Login } from '@/web/routes/Login';
+import { server } from '@/web/test/msw-server';
 
 // Render Login inside the providers it needs, with a stub authed-home route so a
 // successful sign-in's redirect is observable.
