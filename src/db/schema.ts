@@ -7,13 +7,19 @@ import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/p
  * new SQL migrations. Every timestamp column uses `withTimezone: true`
  * (`timestamptz`); naive `timestamp` columns are a classic foot-gun.
  *
- * Later phases extend this file — auth (P4) adds `sessions`/`auth_codes`,
- * payments + limits (P5) add `invites`/`rate_limit_counters`/`orders` — all
- * reusing `roleEnum`. They are intentionally NOT defined yet.
+ * Auth (P4) added `sessions`/`auth_codes`; access control + payments (P5) add
+ * `invites`/`rate_limit_counters`/`orders`, all reusing `roleEnum`.
  */
 
 /** The two roles the app ships with. `admin` is granted via the `ADMIN_EMAILS` allowlist (added in P4). */
 export const roleEnum = pgEnum('role', ['admin', 'user']);
+
+/**
+ * Order lifecycle (P5). `pending` on creation; flipped to `paid` (idempotently)
+ * by the Stripe webhook (P7); `refunded` is reserved for the refund workflow a
+ * project adds when it needs one (`charge.refunded`).
+ */
+export const orderStatusEnum = pgEnum('order_status', ['pending', 'paid', 'refunded']);
 
 /**
  * User accounts. Rows are auto-created on first magic-link login (P4); `role`
@@ -51,6 +57,65 @@ export const sessions = pgTable('sessions', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 	id: text('id').primaryKey(),
+	userId: integer('user_id')
+		.notNull()
+		.references(() => users.id),
+});
+
+/**
+ * Out-of-band role grants (P5). The `admin` role is normally granted via the
+ * `ADMIN_EMAILS` allowlist; an invite is the escape hatch for granting an
+ * elevated role to an email that is NOT on the allowlist. `email` is the primary
+ * key (one pending invite per email), so `createInvite` upserts on it. On the
+ * next successful login `verifyCode` calls `consumeInvite(email)` — the row is
+ * read and deleted, and its `role` wins over the default `'user'`. Open signup is
+ * unaffected: an email with no invite still resolves to `'user'`.
+ */
+export const invites = pgTable('invites', {
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	createdBy: integer('created_by')
+		.notNull()
+		.references(() => users.id),
+	email: text('email').primaryKey(),
+	role: roleEnum('role').notNull(),
+});
+
+/**
+ * Fixed-window rate-limit counters (P5). One row per limiter `key` (e.g.
+ * `auth:request-code:<ip>:<email>`). The `rateLimit` middleware resets the row to
+ * `{ count: 1, windowStart: now }` once `now - windowStart >= window`, otherwise
+ * increments `count`; a request that pushes `count` past the limit is rejected
+ * with `429`. The highest-volume of the housekeeping tables — a GC worker (P8)
+ * drops rows older than the longest configured window.
+ */
+export const rateLimitCounters = pgTable('rate_limit_counters', {
+	count: integer('count').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	key: text('key').primaryKey(),
+	windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+});
+
+/**
+ * Payment facts (P5), intentionally DOMAIN-AGNOSTIC: who paid, how much, the
+ * Stripe identifiers, and the status — with no foreign key to whatever the
+ * project sells (link that however suits you: a nullable FK column, or the
+ * `description`/Stripe `metadata`). Rows are user-owned, so every query obeys the
+ * ownership rule (a customer sees only their own orders unless the caller is
+ * `admin`). Created `pending` before the Checkout redirect (P7); the webhook
+ * flips the matching row to `paid`. `description` is NOT NULL with no DB default —
+ * every insert supplies it (the demo uses `'Sample item'`). `amount` is in the
+ * smallest currency unit (e.g. cents).
+ */
+export const orders = pgTable('orders', {
+	amount: integer('amount').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	currency: text('currency').notNull().default('usd'),
+	description: text('description').notNull(),
+	id: serial('id').primaryKey(),
+	paidAt: timestamp('paid_at', { withTimezone: true }),
+	status: orderStatusEnum('status').notNull().default('pending'),
+	stripeCheckoutSessionId: text('stripe_checkout_session_id').notNull().unique(),
+	stripePaymentIntentId: text('stripe_payment_intent_id'),
 	userId: integer('user_id')
 		.notNull()
 		.references(() => users.id),

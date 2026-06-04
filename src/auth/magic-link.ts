@@ -1,3 +1,4 @@
+import { consumeInvite } from '@/auth/invites';
 import { createSession } from '@/auth/sessions';
 import { sendMagicCode } from '@/server/email/resend';
 import { db } from '@/db/client';
@@ -12,15 +13,25 @@ const MAX_ATTEMPTS = 5;
 type Role = (typeof users.$inferSelect)['role'];
 
 /**
- * Resolves the role to assign at login. The `ADMIN_EMAILS` allowlist takes
- * precedence; everyone else is a `user`.
+ * Resolves the role to assign at login.
  *
- * P5 EXTENSION POINT: invites land in P5. When they do, the `'user'` fallback
- * becomes `consumeInvite(email)?.role ?? 'user'` — i.e. replace ONLY the
- * non-admin branch below; the admin-allowlist precedence stays on top.
+ * Precedence: the `ADMIN_EMAILS` allowlist wins (and short-circuits, so an
+ * allowlisted email never touches a pending invite). Otherwise a pending invite
+ * is CONSUMED — `consumeInvite` reads and deletes it in one shot — and its role
+ * is used; with no invite the role falls back to `'user'`. So open self-signup is
+ * unaffected (a fresh non-admin signup is a `'user'`), while an invite is the
+ * out-of-band escape hatch for granting an elevated role to a non-allowlisted
+ * email.
+ *
+ * Because the invite is consumed here and `verifyCode` re-asserts the role on
+ * EVERY login, an invited-admin who is NOT in `ADMIN_EMAILS` is re-evaluated on
+ * their next login with the invite already gone, and resolves back to `'user'`.
+ * Durable admins belong in `ADMIN_EMAILS`; invites are a one-time grant.
  */
-function resolveRole(email: string): Role {
-	return env.ADMIN_EMAILS.includes(email) ? 'admin' : 'user';
+async function resolveRole(email: string): Promise<Role> {
+	if (env.ADMIN_EMAILS.includes(email)) return 'admin';
+	const invite = await consumeInvite(email);
+	return invite?.role ?? 'user';
 }
 
 /** A uniformly-random 6-digit code, zero-padded (e.g. `004217`). */
@@ -96,7 +107,7 @@ export async function verifyCode(
 	// Correct code: consume it, then upsert the user and open a session.
 	await db.delete(authCodes).where(eq(authCodes.email, email));
 
-	const role = resolveRole(email);
+	const role = await resolveRole(email);
 	const [user] = await db
 		.insert(users)
 		.values({ email, role })

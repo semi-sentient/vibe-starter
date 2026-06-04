@@ -1,5 +1,6 @@
 import { db } from '@/db/client';
 import { authCodes } from '@/db/schema';
+import { env } from '@/env';
 import { createTestServer } from '@/server/test/helpers/createTestServer';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -112,5 +113,56 @@ describe('auth routes — edge cases', () => {
 			method: 'POST',
 		});
 		expect(res.status).toBe(400);
+	});
+});
+
+describe('auth routes — rate limiting & CSRF (mounted middleware)', () => {
+	it('rate-limits request-code after 5 requests per (ip, email) window → 429', async () => {
+		const server = createTestServer();
+		const body = {
+			body: JSON.stringify({ email: 'flood@example.com' }),
+			headers: json,
+			method: 'POST',
+		} as const;
+
+		// 5 allowed within the window.
+		for (let i = 0; i < 5; i += 1) {
+			expect((await server.request('/api/auth/request-code', body)).status).toBe(200);
+		}
+		// The 6th is over the limit.
+		expect((await server.request('/api/auth/request-code', body)).status).toBe(429);
+	});
+
+	it('keys the limit by email, so a different email is unaffected', async () => {
+		const server = createTestServer();
+		const post = (email: string) =>
+			server.request('/api/auth/request-code', {
+				body: JSON.stringify({ email }),
+				headers: json,
+				method: 'POST',
+			});
+
+		for (let i = 0; i < 5; i += 1) await post('a@example.com');
+		expect((await post('a@example.com')).status).toBe(429);
+		// A different email starts its own window.
+		expect((await post('b@example.com')).status).toBe(200);
+	});
+
+	it('rejects a POST with a mismatched Origin (CSRF) with 403', async () => {
+		const res = await createTestServer().request('/api/auth/request-code', {
+			body: JSON.stringify({ email: 'csrf@example.com' }),
+			headers: { ...json, origin: 'https://evil.example' },
+			method: 'POST',
+		});
+		expect(res.status).toBe(403);
+	});
+
+	it('allows a POST whose Origin matches APP_ORIGIN', async () => {
+		const res = await createTestServer().request('/api/auth/request-code', {
+			body: JSON.stringify({ email: 'goodorigin@example.com' }),
+			headers: { ...json, origin: env.APP_ORIGIN },
+			method: 'POST',
+		});
+		expect(res.status).toBe(200);
 	});
 });

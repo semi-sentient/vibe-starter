@@ -1,7 +1,9 @@
+import { createInvite } from '@/auth/invites';
 import { requestCode, verifyCode } from '@/auth/magic-link';
 import { db } from '@/db/client';
-import { authCodes, sessions, users } from '@/db/schema';
+import { authCodes, invites, sessions, users } from '@/db/schema';
 import { env } from '@/env';
+import { createUser } from '@/server/test/factories/users';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -108,6 +110,50 @@ describe('verifyCode', () => {
 		await verifyCode('shifting@example.com', await issuedCodeFor('shifting@example.com'));
 
 		const [user] = await db.select().from(users).where(eq(users.email, 'shifting@example.com'));
+		expect(user?.role).toBe('user');
+	});
+
+	it('grants the invited role on first login and consumes the invite', async () => {
+		const inviter = await createUser({ email: 'inviter@example.com', role: 'admin' });
+		await createInvite('invited@example.com', 'admin', inviter.id);
+
+		await requestCode('invited@example.com');
+		await verifyCode('invited@example.com', await issuedCodeFor('invited@example.com'));
+
+		const [user] = await db.select().from(users).where(eq(users.email, 'invited@example.com'));
+		expect(user?.role).toBe('admin');
+		// The invite is one-shot — consumed by the login.
+		const inviteRows = await db
+			.select()
+			.from(invites)
+			.where(eq(invites.email, 'invited@example.com'));
+		expect(inviteRows).toHaveLength(0);
+	});
+
+	it('ADMIN_EMAILS takes precedence over an invite (and the invite is left intact)', async () => {
+		const inviter = await createUser({ email: 'inviter@example.com', role: 'admin' });
+		// Invite says "user", but the allowlist says "admin" — the allowlist wins
+		// and the invite is not consumed (the admin branch short-circuits).
+		await createInvite('vip@example.com', 'user', inviter.id);
+		env.ADMIN_EMAILS.push('vip@example.com');
+
+		await requestCode('vip@example.com');
+		await verifyCode('vip@example.com', await issuedCodeFor('vip@example.com'));
+
+		const [user] = await db.select().from(users).where(eq(users.email, 'vip@example.com'));
+		expect(user?.role).toBe('admin');
+		const inviteRows = await db
+			.select()
+			.from(invites)
+			.where(eq(invites.email, 'vip@example.com'));
+		expect(inviteRows).toHaveLength(1);
+	});
+
+	it('falls back to "user" when there is no invite and the email is not allowlisted', async () => {
+		await requestCode('plain@example.com');
+		await verifyCode('plain@example.com', await issuedCodeFor('plain@example.com'));
+
+		const [user] = await db.select().from(users).where(eq(users.email, 'plain@example.com'));
 		expect(user?.role).toBe('user');
 	});
 

@@ -1,8 +1,20 @@
+import { csrf } from '@/auth/csrf';
 import type { AuthUser } from '@/auth/types';
 import { db } from '@/db/client';
 import { authRoutes } from '@/server/routes/auth.routes';
+import { invitesRoutes } from '@/server/routes/invites.routes';
+import { ordersRoutes } from '@/server/routes/orders.routes';
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
+
+/**
+ * Paths exempt from the CSRF Origin check. The Stripe webhook (P7,
+ * `POST /api/stripe/webhook`) is server-to-server and authenticated by signature
+ * — NOT a cookie-authenticated browser request — so it must bypass the check.
+ * The path is listed here NOW (the route lands in P7) as the documented
+ * exemption hook: P7 only needs to add the route, not touch this wiring.
+ */
+const CSRF_EXEMPT_PATHS = ['/api/stripe/webhook'];
 
 /**
  * Hono context type, owned here in `app.ts`.
@@ -26,6 +38,11 @@ type AppContext = { Variables: { user: AuthUser } };
  */
 const app = new Hono<AppContext>()
 	.basePath('/api')
+	// CSRF defense-in-depth: reject non-GET requests with a mismatched Origin.
+	// Mounted FIRST so it guards every route below; the Stripe webhook (P7) is
+	// exempted via CSRF_EXEMPT_PATHS. Rate limiting lives inside the auth router
+	// (on request-code/verify), not here.
+	.use('*', csrf({ exemptPaths: CSRF_EXEMPT_PATHS }))
 	.get('/health', async (c) => {
 		try {
 			await db.execute(sql`select 1`);
@@ -35,7 +52,11 @@ const app = new Hono<AppContext>()
 		}
 	})
 	// Magic-link auth, served under `/api/auth/*` (basePath + this mount).
-	.route('/auth', authRoutes);
+	.route('/auth', authRoutes)
+	// Admin-only out-of-band role grants, served under `/api/invites/*`.
+	.route('/invites', invitesRoutes)
+	// User-owned orders, served under `/api/orders/*` (owner-scoped reads).
+	.route('/orders', ordersRoutes);
 
 export { app };
 
