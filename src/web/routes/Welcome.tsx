@@ -1,4 +1,13 @@
 import { client } from '@/web/api/client';
+import { Button } from '@/web/components/ui/button';
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from '@/web/components/ui/card';
+import { cn } from '@/web/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 
 /**
@@ -13,7 +22,6 @@ import { useQuery } from '@tanstack/react-query';
  *   - 200 `{ db: 'up' }`                       → API ✓, Database ✓
  * A 503 is deliberately NOT thrown — it is a real server response, so the query
  * resolves with the parsed body and the API badge stays green.
- * Styling is intentionally minimal — Tailwind + shadcn polish arrives in a later phase.
  */
 export function Welcome() {
 	const health = useQuery({
@@ -30,40 +38,66 @@ export function Welcome() {
 	const dbConnected = health.isSuccess && health.data.db === 'up';
 
 	return (
-		<main style={styles.main}>
-			<h1 style={styles.heading}>Welcome to vibe-starter</h1>
-			<p style={styles.tagline}>
-				Your full-stack TypeScript app is wired up and running. Edit this page in{' '}
-				<code>src/web/routes/Welcome.tsx</code> to make it yours.
-			</p>
-
-			<section style={styles.status} aria-live="polite">
-				<StatusBadge
-					label="API"
-					state={health.isPending ? 'pending' : apiConnected ? 'ok' : 'error'}
-					okText="connected"
-					pendingText="checking…"
-					errorText="unreachable"
-				/>
-				<StatusBadge
-					label="Database"
-					state={health.isPending ? 'pending' : dbConnected ? 'ok' : 'error'}
-					okText="connected"
-					pendingText="checking…"
-					errorText="unreachable"
-				/>
-			</section>
-
-			<div style={styles.actions}>
-				<a style={styles.primaryButton} href="/login">
-					Sign in
-				</a>
+		<main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-6 p-6 md:p-8">
+			<div className="flex flex-col gap-2">
+				<h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+					Welcome to vibe-starter
+				</h1>
+				<p className="text-muted-foreground">
+					Your full-stack TypeScript app is wired up and running. Edit this page in{' '}
+					<code className="rounded bg-muted px-1 py-0.5 text-sm">
+						src/web/routes/Welcome.tsx
+					</code>{' '}
+					to make it yours.
+				</p>
 			</div>
 
-			<nav style={styles.links}>
-				<a href="https://github.com/semi-sentient/vibe-starter#readme">Read the README</a>
-				<a href="#build-your-first-feature">Build your first feature</a>
-			</nav>
+			<Card>
+				<CardHeader>
+					<CardTitle>System status</CardTitle>
+					<CardDescription>
+						Live health check through the typed API client.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<section className="flex flex-wrap gap-3" aria-live="polite">
+						<StatusBadge
+							label="API"
+							state={health.isPending ? 'pending' : apiConnected ? 'ok' : 'error'}
+							okText="connected"
+							pendingText="checking…"
+							errorText="unreachable"
+						/>
+						<StatusBadge
+							label="Database"
+							state={health.isPending ? 'pending' : dbConnected ? 'ok' : 'error'}
+							okText="connected"
+							pendingText="checking…"
+							errorText="unreachable"
+						/>
+					</section>
+				</CardContent>
+			</Card>
+
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+				<Button asChild>
+					<a href="/login">Sign in</a>
+				</Button>
+				<nav className="flex gap-4 text-sm text-muted-foreground">
+					<a
+						className="underline-offset-4 hover:underline"
+						href="https://github.com/semi-sentient/vibe-starter#readme"
+					>
+						Read the README
+					</a>
+					<a
+						className="underline-offset-4 hover:underline"
+						href="#build-your-first-feature"
+					>
+						Build your first feature
+					</a>
+				</nav>
+			</div>
 		</main>
 	);
 }
@@ -80,61 +114,17 @@ function StatusBadge(props: {
 	const { errorText, label, okText, pendingText, state } = props;
 	const text = state === 'ok' ? okText : state === 'pending' ? pendingText : errorText;
 	const mark = state === 'ok' ? '✓' : state === 'pending' ? '…' : '✕';
-	const color = state === 'ok' ? '#15803d' : state === 'pending' ? '#a16207' : '#b91c1c';
 
 	return (
-		<span style={{ ...styles.badge, borderColor: color, color }}>
+		<span
+			className={cn(
+				'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium',
+				state === 'ok' && 'border-green-600 text-green-700',
+				state === 'pending' && 'border-yellow-600 text-yellow-700',
+				state === 'error' && 'border-red-600 text-red-700'
+			)}
+		>
 			<strong>{label}</strong> {mark} {text}
 		</span>
 	);
 }
-
-const styles: Record<string, React.CSSProperties> = {
-	actions: {
-		display: 'flex',
-		gap: '0.75rem',
-		marginBottom: '1.5rem',
-	},
-	badge: {
-		border: '1px solid',
-		borderRadius: '9999px',
-		display: 'inline-flex',
-		fontSize: '0.875rem',
-		gap: '0.375rem',
-		padding: '0.25rem 0.75rem',
-	},
-	heading: {
-		fontSize: '2rem',
-		marginBottom: '0.5rem',
-	},
-	links: {
-		display: 'flex',
-		gap: '1.5rem',
-		fontSize: '0.875rem',
-	},
-	main: {
-		fontFamily: 'system-ui, sans-serif',
-		lineHeight: 1.5,
-		margin: '0 auto',
-		maxWidth: '42rem',
-		padding: '3rem 1.5rem',
-	},
-	primaryButton: {
-		background: '#111827',
-		borderRadius: '0.5rem',
-		color: '#fff',
-		display: 'inline-block',
-		padding: '0.5rem 1rem',
-		textDecoration: 'none',
-	},
-	status: {
-		display: 'flex',
-		flexWrap: 'wrap',
-		gap: '0.75rem',
-		margin: '1.5rem 0',
-	},
-	tagline: {
-		color: '#374151',
-		marginBottom: '0.5rem',
-	},
-};

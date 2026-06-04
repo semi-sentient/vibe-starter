@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
@@ -19,7 +20,7 @@ export default defineConfig({
 		emptyOutDir: true,
 		outDir: fileURLToPath(new URL('./dist', import.meta.url)),
 	},
-	plugins: [react()],
+	plugins: [react(), tailwindcss()],
 	resolve: {
 		// Mirror the `@/*` -> `./src/*` tsconfig path so shadcn-generated `@/lib/utils`
 		// imports (added in a later phase) resolve in the bundle too.

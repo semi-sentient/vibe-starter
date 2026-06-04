@@ -1,16 +1,27 @@
 import { client } from '@/web/api/client';
 import { useAuth } from '@/web/auth/AuthProvider';
+import { Button } from '@/web/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader } from '@/web/components/ui/card';
+import {
+	Form,
+	FormControl,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from '@/web/components/ui/form';
+import { Input } from '@/web/components/ui/input';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 import { z } from 'zod';
 
 /** Where a successful sign-in lands. The public Welcome page stays at `/`. */
 const AUTHED_HOME = '/app';
 
-const emailSchema = z.string().email();
-
-// VERBATIM PRD copy — the Login RTL tests assert these exact strings. A later
-// phase (P6) restyles this form but MUST preserve them.
+// VERBATIM PRD copy — the Login RTL tests assert these exact strings. The shadcn
+// `Form` restyle (P6) preserves them.
 const COPY = {
 	codeLabel: 'Verification code',
 	codePlaceholder: '6-digit code',
@@ -23,13 +34,26 @@ const COPY = {
 	verifyButton: 'Sign in',
 } as const;
 
+// Client schemas mirror the backend `zValidator` shapes in
+// `src/server/routes/auth.routes.ts` (`{ email }` and `{ email, code }`); the
+// custom message drives the exact validation copy the form shows.
+const emailSchema = z.object({
+	email: z.string().email({ message: COPY.invalidEmail }),
+});
+type EmailValues = z.infer<typeof emailSchema>;
+
+const codeSchema = z.object({
+	code: z.string(),
+});
+type CodeValues = z.infer<typeof codeSchema>;
+
 /**
  * Magic-link sign-in page (`/login`).
  *
  * Two steps: request a code for an email, then submit the 6-digit code. A
  * successful verify (via `useAuth().login`) redirects to the authed home;
- * Welcome (`/`) remains public. Intentionally a plain, accessible form — shadcn
- * `Form` + react-hook-form arrive in P6 without changing the copy or flow.
+ * Welcome (`/`) remains public. Built on shadcn `Form` + react-hook-form + zod,
+ * with the same copy and flow as before.
  */
 export function Login() {
 	const { login } = useAuth();
@@ -37,134 +61,117 @@ export function Login() {
 
 	const [step, setStep] = useState<'code' | 'email'>('email');
 	const [email, setEmail] = useState('');
-	const [code, setCode] = useState('');
-	const [error, setError] = useState<string | null>(null);
-	const [submitting, setSubmitting] = useState(false);
 
-	async function handleRequestCode(event: React.FormEvent) {
-		event.preventDefault();
-		setError(null);
-		if (!emailSchema.safeParse(email).success) {
-			setError(COPY.invalidEmail);
-			return;
-		}
-		setSubmitting(true);
-		try {
-			await client.api.auth['request-code'].$post({ json: { email } });
-			setStep('code');
-		} finally {
-			setSubmitting(false);
-		}
+	async function handleRequestCode(values: EmailValues) {
+		await client.api.auth['request-code'].$post({ json: { email: values.email } });
+		setEmail(values.email);
+		setStep('code');
 	}
 
-	async function handleVerify(event: React.FormEvent) {
-		event.preventDefault();
-		setError(null);
-		setSubmitting(true);
-		try {
-			await login(email, code);
-			void navigate(AUTHED_HOME);
-		} catch {
-			setError(COPY.invalidCode);
-		} finally {
-			setSubmitting(false);
-		}
+	async function handleVerify(values: CodeValues) {
+		await login(email, values.code);
+		void navigate(AUTHED_HOME);
 	}
 
 	return (
-		<main style={styles.main}>
-			<h1 style={styles.heading}>{COPY.title}</h1>
-
-			{step === 'email' ? (
-				<form onSubmit={handleRequestCode} style={styles.form} noValidate>
-					<label htmlFor="email" style={styles.label}>
-						{COPY.emailLabel}
-					</label>
-					<input
-						autoComplete="email"
-						id="email"
-						name="email"
-						onChange={(e) => setEmail(e.target.value)}
-						placeholder={COPY.emailPlaceholder}
-						style={styles.input}
-						type="email"
-						value={email}
-					/>
-					{error ? (
-						<p role="alert" style={styles.error}>
-							{error}
-						</p>
-					) : null}
-					<button disabled={submitting} style={styles.button} type="submit">
-						{COPY.sendButton}
-					</button>
-				</form>
-			) : (
-				<form onSubmit={handleVerify} style={styles.form} noValidate>
-					<label htmlFor="code" style={styles.label}>
-						{COPY.codeLabel}
-					</label>
-					<input
-						autoComplete="one-time-code"
-						id="code"
-						inputMode="numeric"
-						name="code"
-						onChange={(e) => setCode(e.target.value)}
-						placeholder={COPY.codePlaceholder}
-						style={styles.input}
-						value={code}
-					/>
-					{error ? (
-						<p role="alert" style={styles.error}>
-							{error}
-						</p>
-					) : null}
-					<button disabled={submitting} style={styles.button} type="submit">
-						{COPY.verifyButton}
-					</button>
-				</form>
-			)}
+		<main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-6">
+			<Card>
+				<CardHeader>
+					<h1 className="text-xl leading-none font-semibold">{COPY.title}</h1>
+					<CardDescription>
+						{step === 'email'
+							? 'Enter your email and we’ll send you a sign-in code.'
+							: `We sent a code to ${email}. Enter it below to sign in.`}
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					{step === 'email' ? (
+						<EmailStep onSubmit={handleRequestCode} />
+					) : (
+						<CodeStep onSubmit={handleVerify} />
+					)}
+				</CardContent>
+			</Card>
 		</main>
 	);
 }
 
-const styles: Record<string, React.CSSProperties> = {
-	button: {
-		background: '#111827',
-		borderRadius: '0.5rem',
-		border: 'none',
-		color: '#fff',
-		cursor: 'pointer',
-		padding: '0.5rem 1rem',
-	},
-	error: {
-		color: '#b91c1c',
-		fontSize: '0.875rem',
-		margin: 0,
-	},
-	form: {
-		display: 'flex',
-		flexDirection: 'column',
-		gap: '0.75rem',
-	},
-	heading: {
-		fontSize: '1.5rem',
-		marginBottom: '1rem',
-	},
-	input: {
-		border: '1px solid #d1d5db',
-		borderRadius: '0.375rem',
-		fontSize: '1rem',
-		padding: '0.5rem',
-	},
-	label: {
-		fontSize: '0.875rem',
-		fontWeight: 600,
-	},
-	main: {
-		fontFamily: 'system-ui, sans-serif',
-		margin: '0 auto',
-		maxWidth: '24rem',
-		padding: '3rem 1.5rem',
-	},
-};
+/** Step 1: collect + validate the email, then request a code. */
+function EmailStep({ onSubmit }: { onSubmit: (values: EmailValues) => Promise<void> }) {
+	const form = useForm<EmailValues>({
+		defaultValues: { email: '' },
+		resolver: zodResolver(emailSchema),
+	});
+
+	return (
+		<Form {...form}>
+			<form className="flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
+				<FormField
+					control={form.control}
+					name="email"
+					render={({ field }) => (
+						<FormItem>
+							<FormLabel>{COPY.emailLabel}</FormLabel>
+							<FormControl>
+								<Input
+									autoComplete="email"
+									placeholder={COPY.emailPlaceholder}
+									type="email"
+									{...field}
+								/>
+							</FormControl>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+				<Button disabled={form.formState.isSubmitting} type="submit">
+					{COPY.sendButton}
+				</Button>
+			</form>
+		</Form>
+	);
+}
+
+/** Step 2: collect the code and verify it; a server rejection shows on the field. */
+function CodeStep({ onSubmit }: { onSubmit: (values: CodeValues) => Promise<void> }) {
+	const form = useForm<CodeValues>({
+		defaultValues: { code: '' },
+		resolver: zodResolver(codeSchema),
+	});
+
+	async function handle(values: CodeValues) {
+		try {
+			await onSubmit(values);
+		} catch {
+			form.setError('code', { message: COPY.invalidCode, type: 'server' });
+		}
+	}
+
+	return (
+		<Form {...form}>
+			<form className="flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(handle)}>
+				<FormField
+					control={form.control}
+					name="code"
+					render={({ field }) => (
+						<FormItem>
+							<FormLabel>{COPY.codeLabel}</FormLabel>
+							<FormControl>
+								<Input
+									autoComplete="one-time-code"
+									inputMode="numeric"
+									placeholder={COPY.codePlaceholder}
+									{...field}
+								/>
+							</FormControl>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+				<Button disabled={form.formState.isSubmitting} type="submit">
+					{COPY.verifyButton}
+				</Button>
+			</form>
+		</Form>
+	);
+}

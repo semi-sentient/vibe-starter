@@ -1,12 +1,12 @@
 import { useAuth } from '@/web/auth/AuthProvider';
+import { Button } from '@/web/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader } from '@/web/components/ui/card';
 import { useNavigate } from 'react-router';
 
 /**
  * The signed-in landing page (`/app`), shown after a successful login. The
  * public Welcome page stays at `/`. Greets the user and offers `Sign out`,
  * which ends the session and returns to the public home.
- *
- * Intentionally minimal — Tailwind + shadcn polish arrive in P6.
  */
 export function Home() {
 	const { logout, user } = useAuth();
@@ -18,40 +18,21 @@ export function Home() {
 	}
 
 	return (
-		<main style={styles.main}>
-			<h1 style={styles.heading}>You're signed in</h1>
-			<p style={styles.body}>
-				Signed in as <strong>{user?.email}</strong>
-				{user?.role === 'admin' ? ' (admin)' : null}.
-			</p>
-			<button onClick={() => void handleSignOut()} style={styles.button} type="button">
-				Sign out
-			</button>
+		<main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center p-6 md:p-8">
+			<Card>
+				<CardHeader>
+					<h1 className="text-2xl leading-none font-semibold">You&apos;re signed in</h1>
+					<CardDescription>
+						Signed in as <strong>{user?.email}</strong>
+						{user?.role === 'admin' ? ' (admin)' : null}.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<Button onClick={() => void handleSignOut()} type="button" variant="outline">
+						Sign out
+					</Button>
+				</CardContent>
+			</Card>
 		</main>
 	);
 }
-
-const styles: Record<string, React.CSSProperties> = {
-	body: {
-		color: '#374151',
-		marginBottom: '1.5rem',
-	},
-	button: {
-		background: '#111827',
-		border: 'none',
-		borderRadius: '0.5rem',
-		color: '#fff',
-		cursor: 'pointer',
-		padding: '0.5rem 1rem',
-	},
-	heading: {
-		fontSize: '1.5rem',
-		marginBottom: '0.5rem',
-	},
-	main: {
-		fontFamily: 'system-ui, sans-serif',
-		margin: '0 auto',
-		maxWidth: '32rem',
-		padding: '3rem 1.5rem',
-	},
-};
