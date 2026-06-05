@@ -46,6 +46,10 @@
 	--color-sidebar-primary: var(--sidebar-primary);
 	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
 	--color-sidebar-ring: var(--sidebar-ring);
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
+	--color-warning: var(--warning);
+	--color-warning-foreground: var(--warning-foreground);
 	--radius-lg: var(--radius);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-sm: calc(var(--radius) - 4px);
@@ -86,6 +90,10 @@
 	--sidebar-primary: oklch(0.205 0 0);
 	--sidebar-primary-foreground: oklch(0.985 0 0);
 	--sidebar-ring: oklch(0.708 0 0);
+	--success: oklch(0.55 0.14 150);
+	--success-foreground: oklch(0.985 0 0);
+	--warning: oklch(0.68 0.15 70);
+	--warning-foreground: oklch(0.205 0 0);
 }
 
 .dark {
@@ -121,6 +129,10 @@
 	--sidebar-primary: oklch(0.488 0.243 264.376);
 	--sidebar-primary-foreground: oklch(0.985 0 0);
 	--sidebar-ring: oklch(0.556 0 0);
+	--success: oklch(0.7 0.15 150);
+	--success-foreground: oklch(0.205 0 0);
+	--warning: oklch(0.78 0.14 75);
+	--warning-foreground: oklch(0.205 0 0);
 }
 
 @layer base {

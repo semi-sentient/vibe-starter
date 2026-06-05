@@ -119,9 +119,9 @@ function StatusBadge(props: {
 		<span
 			className={cn(
 				'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium',
-				state === 'ok' && 'border-green-600 text-green-700',
-				state === 'pending' && 'border-yellow-600 text-yellow-700',
-				state === 'error' && 'border-red-600 text-red-700'
+				state === 'ok' && 'border-success text-success',
+				state === 'pending' && 'border-warning text-warning',
+				state === 'error' && 'border-destructive text-destructive'
 			)}
 		>
 			<strong>{label}</strong> {mark} {text}

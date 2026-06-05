@@ -8,9 +8,13 @@ import { client } from '@/web/api/client';
  * `users` row from `GET /api/auth/me` — `createdAt` arrives as an ISO string.
  */
 export interface AuthUser {
+	/** Account creation time as an ISO 8601 string — the DB `Date` serialized over JSON. */
 	createdAt: string;
+	/** The sign-in email; unique per account. */
 	email: string;
+	/** Primary key — matches `users.id` on the backend. */
 	id: number;
+	/** Authorization level. `'admin'` bypasses the per-row ownership filter on `orders`; `'user'` is scoped to their own rows. Derived server-side from `ADMIN_EMAILS`. */
 	role: 'admin' | 'user';
 }
 
@@ -80,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		user: sessionQuery.data ?? null,
 	};
 
-	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+	return <AuthContext value={value}>{children}</AuthContext>;
 }
 
 /** Access the auth state. Throws if used outside an {@link AuthProvider}. */

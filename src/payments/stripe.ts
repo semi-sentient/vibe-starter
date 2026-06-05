@@ -37,10 +37,13 @@ export const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
 	typescript: true,
 });
 
-/** A caller-supplied line item to charge for. `amount` is the smallest currency unit (cents). */
+/** A caller-supplied line item to charge for. */
 export interface CheckoutLineItem {
+	/** Charge amount in the smallest currency unit (e.g. cents for `usd`), not a decimal. */
 	amount: number;
+	/** ISO 4217 currency code, lowercase (e.g. `'usd'`) — as Stripe expects it. */
 	currency: string;
+	/** Human-readable product name shown on the Stripe Checkout page. */
 	name: string;
 }
 
