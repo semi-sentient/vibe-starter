@@ -415,7 +415,7 @@ const [user] = await db
 	.returning();
 ```
 
-**3. Session storage in Postgres.** Sessions are rows in a `sessions` table with `(id, user_id, expires_at)` columns and a 24-hour TTL with sliding refresh on each request.
+**3. Session storage in Postgres.** Sessions are rows in a `sessions` table with `(id, user_id, expires_at, created_at)` columns and a 24-hour TTL with sliding refresh on each request.
 
 Reasoning: rejecting JWTs because they cannot be revoked without an external blacklist (which defeats the point); rejecting Redis because we don't ship Redis by default. Postgres sessions are simple, performant at our scale, and survive a reboot.
 
@@ -898,7 +898,7 @@ Per-test transactional rollback was rejected because Drizzle's `db.transaction()
 
 **4. Plain TS factories + `setupUsers()` helper.** `createUser({ role })` and `createOrder({ userId, ... })` in `src/server/test/factories/`. A `setupUsers()` helper composes them and returns `{ admin, user }` for the common case ("give me an admin and a regular user"). No factory library; the agent reads the function and uses it.
 
-**5. Test parallelism: serial.** `vitest.config.ts` sets `pool: 'forks'` with `singleFork: true`. Required by the single-DB truncate strategy. Cost is negligible at prototype scale.
+**5. Test parallelism: serial.** `vitest.config.ts` runs everything in one forked process, one file at a time — `pool: 'forks'` with `fileParallelism: false` + `maxWorkers: 1` (Vitest 4 removed the old `poolOptions.singleFork`; these are the net-equivalent replacement). Required by the single-DB truncate strategy. Cost is negligible at prototype scale. Tests are split into two Vitest projects sharing this serial config: `server` (`node` environment, the DB-backed harness) and `web` (`happy-dom` environment, RTL + MSW).
 
 **6. Test file location.** Co-locate route tests next to the route file (`auth.routes.ts` + `auth.routes.test.ts`), matching the frontend convention. Cross-cutting tests (the access-control invariant, the full auth flow) live in `src/server/__tests__/`.
 
@@ -910,13 +910,13 @@ The starter ships **three anchor tests** as smoke checks of the scaffolding and 
 2. `__tests__/access-control.test.ts` — the ownership/access-control invariant. Asserts that:
     - a `user` cannot read another `user`'s row via an owned-resource endpoint (`GET /api/orders/:id` for someone else's order returns 404, not the row) — the IDOR guard, and
     - a `user` calling an `admin`-only route (e.g. `POST /api/invites`) is rejected with 403.
-3. `stripe.routes.test.ts` — the payment webhook, the riskiest integration: a `checkout.session.completed` event with a valid signature marks the matching `orders` row `paid`; an invalid signature returns 400 and changes nothing; a redelivered event is idempotent (no double-processing).
+3. `stripe.routes.test.ts` — the payment webhook, the riskiest integration: a `checkout.session.completed` event with a valid signature marks the matching `orders` row `paid`; an invalid signature returns 400 and changes nothing; a redelivered event is idempotent (no double-processing). (The session-creation half lives in a separate router, `checkout.routes.ts` — the session-protected `POST /api/checkout` create — with its own co-located `checkout.routes.test.ts`; the two payment-side routers are kept distinct.)
 
 These double as (1) templates the agent copies for new tests, (2) living documentation of the failure modes the starter most fears (broken access control / IDOR, and mishandled payment webhooks), and (3) immediate signal that the test infrastructure works on `npm test`.
 
 ### Conventions documentation
 
-Per-project agent-context docs at `src/server/docs/agents/testing.md` (and a parallel `src/web/docs/agents/testing.md`) define the rules: factory location, naming, what to test, when to mock, how to write a new integration test. `src/server/AGENTS.md` references both the conventions doc and the `tdd` skill from `skills-workflow`.
+The canonical testing rules live in the top-level topic doc `docs/agents/testing.md` (one of five canonical topic docs — `documentation`, `mcp-usage`, `react-patterns`, `testing`, `ui-components`). The per-side docs at `src/server/docs/agents/testing.md` and `src/web/docs/agents/testing.md` are thin quick-references that sit atop it ("read the canonical doc first") — they don't restate the harness rules, only the side-specific facts: factory location, naming, what to test, when to mock, how to write a new integration test. `src/server/AGENTS.md` references the conventions doc and the `tdd` skill from `skills-workflow`.
 
 The split: the `tdd` skill provides the _workflow_ (red/green/refactor with vertical slices); the conventions doc provides the _project-specific patterns_; the anchor tests provide the _concrete examples_. The agent reads all three.
 
@@ -937,12 +937,17 @@ src/server/
     cleanRateLimitCounters.ts
   routes/
     auth.routes.ts
-    auth.routes.test.ts   # co-located route-level tests
-    stripe.routes.ts      # POST /api/stripe/webhook
+    auth.routes.test.ts       # co-located route-level tests
+    checkout.routes.ts        # POST /api/checkout (create session, auth-gated)
+    checkout.routes.test.ts
+    stripe.routes.ts          # POST /api/stripe/webhook
+    stripe.routes.test.ts
   docs/
     agents/
-      testing.md       # per-project test conventions
+      testing.md       # server-side quick-ref atop the canonical /docs/agents/testing.md
 ```
+
+(The five canonical topic docs — `documentation`, `mcp-usage`, `react-patterns`, `testing`, `ui-components` — live at the repo-root `docs/agents/`; the per-side `testing.md` shown above is the server quick-reference layered on the canonical one.)
 
 ### Modules NOT tested in the starter
 

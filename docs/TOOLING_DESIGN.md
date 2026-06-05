@@ -363,7 +363,7 @@ echo "  - Run: npm install && npm run dev"
 
 ### README structure
 
-The starter ships a 7-section README:
+The starter ships a README with 7 core sections plus a pre-launch tutorial section:
 
 1. **What this is** — one paragraph
 2. **Quick Start** — 5 commands
@@ -386,6 +386,8 @@ The starter ships a 7-section README:
 
 **The bundled skills pipeline** ([`semi-sentient/skills-workflow`](https://github.com/semi-sentient/skills-workflow)) ships pre-installed. The full pipeline is bundled — `grill-with-docs`, `grill-me`, `write-a-prd`, `prd-to-plan`, `run-plan`, plus the supporting `tdd` and `commit` — so the builder makes zero decisions about which skills to install. The ideal workflow is `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan`; `tdd` and `commit` are invoked automatically by the orchestrating skills and never directly. New users can shortcut by invoking `write-a-prd` first — it auto-invokes `grill-with-docs` if no grilling session has run.
 
+**One MCP server ships pre-registered:** `context7` (`@upstash/context7-mcp`, in `.mcp.json`), a docs-lookup fallback for installed libraries without dedicated tooling. Usage guidance — including the version-drift caveat — lives in `docs/agents/mcp-usage.md`.
+
 ### Why one canonical file
 
 Agent rule files have proliferated: `CLAUDE.md` (Claude Code), `.cursorrules` (Cursor), `.cursor/rules/*.mdc` (newer Cursor), `.roo/rules/*.md` (Roo Code), `.windsurfrules`, `.github/copilot-instructions.md`, and the emerging `AGENTS.md` convention.
@@ -394,7 +396,7 @@ Maintaining six near-duplicate files invites drift. `AGENTS.md` is increasingly 
 
 ### What goes in `AGENTS.md`
 
-Apply one filter, borrowed from Addy Osmani's [AGENTS.md as a protocol file](https://addyosmani.com/blog/agents-md/): **can the agent discover this by reading the code?** If yes, leave it out. `AGENTS.md` is a protocol file — the minimum essential context the agent genuinely cannot derive from the repo itself. Stack declarations, directory tours, library do/don't lists, and architecture overviews belong in `/docs` (this design doc and its siblings) and `CONTEXT.md` (maintained by `grill-with-docs`), where they are loaded deliberately rather than re-read every turn.
+Apply one filter, borrowed from Addy Osmani's [AGENTS.md as a protocol file](https://addyosmani.com/blog/agents-md/): **can the agent discover this by reading the code?** If yes, leave it out. `AGENTS.md` is a protocol file — the minimum essential context the agent genuinely cannot derive from the repo itself. Stack declarations, directory tours, library do/don't lists, and architecture overviews belong in `/docs` (this design doc and its siblings) and `CONTEXT.md` (maintained by `grill-with-docs`), where they are loaded deliberately rather than re-read every turn. Task-scoped conventions sit one layer below that: `AGENTS.md` carries a "Topic Documentation" routing table that points the agent at `docs/agents/{documentation,mcp-usage,react-patterns,testing,ui-components}.md` — short, on-demand topic docs read only when the task matches the row, so the protocol file stays lean.
 
 The starter ships `AGENTS.md` with five short sections, each earning its place against the filter. `CLAUDE.md` is a symlink to `AGENTS.md` so Claude Code picks up the same content.
 
@@ -457,7 +459,7 @@ Pre-installed skills:
 
 The ideal workflow is `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan`, with steps 1–3 in one conversation and step 4 in a fresh one. See [`semi-sentient/skills-workflow` docs/WORKFLOW.md](https://github.com/semi-sentient/skills-workflow/blob/main/docs/WORKFLOW.md) for the full walkthrough.
 
-Skills are updated by re-running `npx skills@latest update` against the starter when a new version of the pipeline lands; the starter's `CHANGELOG.md` notes when bundled skill versions move.
+The bundled set is pinned in `skills-lock.json` and managed with the `skills` CLI: `npx skills experimental_install` restores the locked set into a fresh clone, and `npx skills update` moves them to the latest upstream versions when a new version of the pipeline lands. The starter's `CHANGELOG.md` notes when bundled skill versions move.
 
 ---
 

@@ -200,7 +200,7 @@ The starter's README includes a one-paragraph note explaining this. Major releas
 
 ## Ready for real users?
 
-Before you launch to real customers — especially before you take real payments — run this short self-review. (For the _setup_ that gets you to a live deployment — creating your Railway / Resend / Stripe accounts, verifying a sending domain, wiring the Stripe webhook, connecting a custom domain — follow `DEPLOY.md`; this checklist is the _gate_ you run once that's done.) It's your own pre-launch checklist, not an external review. If anything below is unchecked, you're not ready yet. (A `LAUNCH_CHECKLIST.md` may ship in the repo as a copy of this list to tick through.)
+Before you launch to real customers — especially before you take real payments — run this short self-review. (For the _setup_ that gets you to a live deployment — creating your Railway / Resend / Stripe accounts, verifying a sending domain, wiring the Stripe webhook, connecting a custom domain — follow `DEPLOY.md`; this checklist is the _gate_ you run once that's done.) It's your own pre-launch checklist, not an external review. If anything below is unchecked, you're not ready yet. (The canonical copy to tick through lives in `DEPLOY.md` under "Ready for real users?" — there is intentionally no separate `LAUNCH_CHECKLIST.md`.)
 
 **Access control is intact.**
 

@@ -107,7 +107,7 @@ The honest weakness of Tailwind/shadcn — and historically the strongest argume
 We mitigate this deliberately. This is how we keep a non-engineer's app on-brand:
 
 - **(a) A curated set of shadcn components + design tokens as CSS variables.** The starter ships only token-based components, and the palette/typography/spacing/radii live as CSS variables in `globals.css` (see Theming). Components read from these tokens, so the default path is the on-brand path.
-- **(b) A lint rule discouraging arbitrary Tailwind values.** An ESLint / Tailwind `no-arbitrary-value`-style rule flags `bg-[...]`, `text-[...]`, and friends, so going off-token takes a deliberate, visible step rather than happening by accident. It's CI-enforced (zero-warnings — see `TOOLING_DESIGN.md`), which is what turns the design system from a suggestion into a contract.
+- **(b) A lint rule discouraging arbitrary Tailwind values.** An ESLint / Tailwind `no-arbitrary-value`-style rule flags `bg-[...]`, `text-[...]`, and friends, so going off-token takes a deliberate, visible step rather than happening by accident. It's CI-enforced (zero-warnings — see `TOOLING_DESIGN.md`), which is what turns the design system from a suggestion into a contract. One blind spot to self-enforce: the rule only matches bracketed `[...]` syntax, so raw palette classes (`text-green-700`, `bg-red-500`) slip past it — they're equally off-token and equally disallowed, but the agent has to hold that line itself (see `docs/agents/ui-components.md`).
 - **(c) The `cn()` / `tailwind-merge` utility.** shadcn's standard `cn()` helper (clsx + `tailwind-merge`) composes class lists predictably and resolves conflicts, so variant overrides stay sane instead of producing duplicated, fighting classes.
 
 Together these recover most of the discipline a closed component library gives you for free, while keeping the ownership, aesthetic, and licensing wins.
@@ -154,7 +154,7 @@ Theme via **Tailwind configuration + CSS variables** (shadcn's `:root` design to
 
 ### Why
 
-The palette, typography scale, spacing, and radii live as CSS variables in `globals.css` (e.g. `--primary`, `--background`, `--radius`), and Tailwind's config maps utilities onto those tokens. shadcn components reference the tokens, so re-skinning the whole app is mostly a matter of editing a handful of CSS variables — exactly the kind of change a non-engineer can make safely with their agent.
+The palette, typography scale, spacing, and radii live as CSS variables in `globals.css` (e.g. `--primary`, `--background`, `--radius`), and Tailwind's config maps utilities onto those tokens. Beyond the stock shadcn tokens, the starter adds first-class `--success` / `--warning` tokens (defined in `:root`, `.dark`, and `@theme inline`, so `bg-success` / `text-warning` work like any other token); add new tokens the same way rather than reaching for a raw value. shadcn components reference the tokens, so re-skinning the whole app is mostly a matter of editing a handful of CSS variables — exactly the kind of change a non-engineer can make safely with their agent.
 
 Keeping the theme inline (rather than in a published, versioned package) is the right call at side-project scale:
 
@@ -195,7 +195,7 @@ If an embedded card form is ever required (rare), **Stripe Elements** (`@stripe/
 
 ## Routing, forms, data fetching, state
 
-These are smaller decisions that the agent would otherwise make per-file. Standardizing them in the starter (and AGENTS.md) prevents per-project variance.
+These are smaller decisions that the agent would otherwise make per-file. Standardizing them in the starter (and AGENTS.md) prevents per-project variance. The concrete, copy-paste-level conventions for components, hooks, context providers, and styling live in the topic docs `AGENTS.md` routes to — `docs/agents/react-patterns.md` and `docs/agents/ui-components.md` — which the agent reads before touching the relevant code.
 
 | Concern                    | Choice                                                                      | Rationale                                                                                                                                                                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
