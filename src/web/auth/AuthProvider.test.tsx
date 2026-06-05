@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
@@ -56,10 +57,11 @@ describe('AuthProvider', () => {
 				HttpResponse.json({ user: { email: 'person@example.com', id: 7, role: 'user' } })
 			)
 		);
+		const user = userEvent.setup();
 		renderWithProviders(<AuthProbe />);
 		await screen.findByText('user: none');
 
-		fireEvent.click(screen.getByRole('button', { name: 'do-login' }));
+		await user.click(screen.getByRole('button', { name: 'do-login' }));
 
 		expect(await screen.findByText('user: person@example.com')).toBeInTheDocument();
 	});
@@ -71,10 +73,11 @@ describe('AuthProvider', () => {
 			),
 			http.post('/api/auth/logout', () => new HttpResponse(null, { status: 204 }))
 		);
+		const user = userEvent.setup();
 		renderWithProviders(<AuthProbe />);
 		await screen.findByText('user: her@example.com');
 
-		fireEvent.click(screen.getByRole('button', { name: 'do-logout' }));
+		await user.click(screen.getByRole('button', { name: 'do-logout' }));
 
 		await waitFor(() => expect(screen.getByText('user: none')).toBeInTheDocument());
 	});

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -62,9 +63,10 @@ describe('<Checkout />', () => {
 				HttpResponse.json({ url: 'https://checkout.stripe.com/c/pay/cs_test_buy' })
 			)
 		);
+		const user = userEvent.setup();
 		renderCheckout();
 
-		fireEvent.click(screen.getByRole('button', { name: 'Buy now' }));
+		await user.click(screen.getByRole('button', { name: 'Buy now' }));
 
 		await waitFor(() => {
 			expect(hrefSetter).toHaveBeenCalledWith(
@@ -75,9 +77,10 @@ describe('<Checkout />', () => {
 
 	it('shows an error and does not redirect when checkout creation fails', async () => {
 		server.use(http.post('/api/checkout', () => new HttpResponse(null, { status: 401 })));
+		const user = userEvent.setup();
 		renderCheckout();
 
-		fireEvent.click(screen.getByRole('button', { name: 'Buy now' }));
+		await user.click(screen.getByRole('button', { name: 'Buy now' }));
 
 		expect(
 			await screen.findByText('Could not start checkout. Please try again.')

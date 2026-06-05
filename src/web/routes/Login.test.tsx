@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -37,22 +38,22 @@ describe('<Login />', () => {
 	});
 
 	it('shows a validation error for an invalid email', async () => {
+		const user = userEvent.setup();
 		renderLogin();
 
-		fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'nope' } });
-		fireEvent.click(screen.getByRole('button', { name: 'Send code' }));
+		await user.type(screen.getByLabelText('Email'), 'nope');
+		await user.click(screen.getByRole('button', { name: 'Send code' }));
 
 		expect(await screen.findByText('Please enter a valid email address.')).toBeInTheDocument();
 	});
 
 	it('advances to the code step after requesting a code', async () => {
+		const user = userEvent.setup();
 		server.use(http.post('/api/auth/request-code', () => HttpResponse.json({ ok: true })));
 		renderLogin();
 
-		fireEvent.change(screen.getByLabelText('Email'), {
-			target: { value: 'person@example.com' },
-		});
-		fireEvent.click(screen.getByRole('button', { name: 'Send code' }));
+		await user.type(screen.getByLabelText('Email'), 'person@example.com');
+		await user.click(screen.getByRole('button', { name: 'Send code' }));
 
 		const codeInput = await screen.findByLabelText('Verification code');
 		expect(codeInput).toHaveAttribute('placeholder', '6-digit code');
@@ -67,17 +68,14 @@ describe('<Login />', () => {
 				HttpResponse.json({ user: { email: 'person@example.com', id: 1, role: 'user' } })
 			)
 		);
+		const user = userEvent.setup();
 		renderLogin();
 
-		fireEvent.change(screen.getByLabelText('Email'), {
-			target: { value: 'person@example.com' },
-		});
-		fireEvent.click(screen.getByRole('button', { name: 'Send code' }));
+		await user.type(screen.getByLabelText('Email'), 'person@example.com');
+		await user.click(screen.getByRole('button', { name: 'Send code' }));
 
-		fireEvent.change(await screen.findByLabelText('Verification code'), {
-			target: { value: '123456' },
-		});
-		fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+		await user.type(await screen.findByLabelText('Verification code'), '123456');
+		await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
 		expect(await screen.findByText('Signed in home')).toBeInTheDocument();
 	});
@@ -87,17 +85,14 @@ describe('<Login />', () => {
 			http.post('/api/auth/request-code', () => HttpResponse.json({ ok: true })),
 			http.post('/api/auth/verify', () => new HttpResponse(null, { status: 401 }))
 		);
+		const user = userEvent.setup();
 		renderLogin();
 
-		fireEvent.change(screen.getByLabelText('Email'), {
-			target: { value: 'person@example.com' },
-		});
-		fireEvent.click(screen.getByRole('button', { name: 'Send code' }));
+		await user.type(screen.getByLabelText('Email'), 'person@example.com');
+		await user.click(screen.getByRole('button', { name: 'Send code' }));
 
-		fireEvent.change(await screen.findByLabelText('Verification code'), {
-			target: { value: '000000' },
-		});
-		fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+		await user.type(await screen.findByLabelText('Verification code'), '000000');
+		await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
 		expect(
 			await screen.findByText('That code is incorrect or has expired. Please try again.')
