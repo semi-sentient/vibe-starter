@@ -1,2 +1,37 @@
-# Auto detect text files and perform line-feed (LF) normalization
+# Normalize line endings so a Windows checkout doesn't break Linux-bound files.
+#
+# `text=auto` lets git store text with LF in the repo and convert to the
+# platform's native ending on checkout. That alone would still hand Windows
+# users CRLF, which corrupts files that are read by a POSIX shell or copied into
+# a Linux container. The explicit `eol=lf` rules below pin those to LF on every
+# platform; binaries are marked `-text` so git never touches their bytes.
+
+# Default: detect text vs binary and normalize text to LF in the repo.
 * text=auto
+
+# Shell scripts MUST stay LF — they run under bash/sh (WSL, Git-Bash) and inside
+# the Linux api/web containers, where a CRLF shebang line fails to execute.
+*.sh text eol=lf
+
+# The git hooks invoked by husky are shell scripts too (no extension).
+.husky/pre-commit text eol=lf
+
+# Dockerfiles, the entrypoint, and the nginx template are consumed on Linux.
+Dockerfile* text eol=lf
+*.template text eol=lf
+
+# Config and source files commonly assumed to be LF by toolchains.
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+
+# Binary assets — never apply line-ending or encoding conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

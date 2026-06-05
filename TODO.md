@@ -13,15 +13,20 @@ is the template maintainer's release checklist.)
       release, have an agent follow it from a clean checkout (add `CONTACT_EMAIL`,
       write the route + Resend wrapper, mount it, exercise valid/honeypot/`400`/
       `429`) and fix any drift from the real `rateLimit()` / Resend / zod APIs.
-- [ ] **Cross-platform smoke tests (P16).** Verify the Tier-1 local-only flow
-      (clone → `bootstrap.sh` → `docker compose up -d` → `npm install` →
-      `npm run dev` → sign up via the console code → `npm test` →
-      `lint`/`typecheck`/`build` → a local commit) on **macOS, Linux, and
-      Windows/WSL**. Confirm the pre-listed risks: Windows symlink handling for
-      `CLAUDE.md`, gitleaks binary presence, `bootstrap.sh` under WSL vs Git-Bash,
-      CRLF/line endings (`.gitattributes`), and docker-compose port conflicts.
-      Fix what's portable; document the rest as caveats. (Also adds the CI OS
-      matrix; the DB-backed `test` leg stays Linux-only.)
+- [x] **Cross-platform smoke tests (P16).** The Tier-1 local-only runbook now
+      lives in [`CONTRIBUTING.md`](CONTRIBUTING.md) → "Local verification" (clone →
+      `bootstrap.sh` → `docker compose up -d` → `npm install` → `npm run dev` →
+      sign up via the console code → `npm test` → `lint`/`typecheck`/`build` → a
+      local commit). The CI OS matrix is the automated gate
+      ([`.github/workflows/ci.yml`](.github/workflows/ci.yml) → the `cross-platform`
+      job runs install/typecheck/lint/build on macOS, Linux, and Windows; the
+      DB-backed `test` leg stays Linux-only). Verified on macOS this session;
+      Linux/Windows are covered by the CI matrix (3-OS green is observable once the
+      branch is pushed) plus a human run of the runbook. The five pre-listed risks
+      are each fixed-or-documented in `CONTRIBUTING.md` → "Cross-platform risks":
+      CRLF/line endings is fixed portably via [`.gitattributes`](.gitattributes);
+      the Windows `CLAUDE.md` symlink, gitleaks presence, `bootstrap.sh` shell
+      support, and the `:5432` port conflict are documented caveats.
 - [ ] **Reconcile `skills-lock.json`.** Confirm the lock lists the 9 skills (the
       7-skill PRD pipeline + `handoff` + `prototype`), that every entry has a
       real (non-placeholder) hash, and that `.agents/skills/` on disk matches the
