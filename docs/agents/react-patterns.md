@@ -37,6 +37,7 @@ Talk to the backend through the typed Hono RPC `client` export — not a REST wr
 In the app entry, outer → inner: `QueryClientProvider` → `BrowserRouter` → `ErrorBoundary` → `AuthProvider` → `App`. The order is not cosmetic:
 
 - `ErrorBoundary` sits inside query + router so its fallback can use those hooks — but its fallback deliberately depends on neither auth nor a specific route, so it still renders if `AuthProvider` itself throws.
+    - **Render-only limitation:** it catches errors thrown during render, not async errors, event-handler errors, or errors inside `useEffect`. Handle those at the call site — TanStack Query surfaces data-fetch errors (`isError`/`error`), and event handlers should try/catch and set local error state.
 - `AuthProvider` sits inside `QueryClientProvider` because it resolves the session via TanStack Query.
 
 Match this when adding providers.

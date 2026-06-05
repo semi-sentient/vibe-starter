@@ -46,5 +46,16 @@ If gitleaks is not installed the hook prints a warning and skips the local scan
 — CI (`gitleaks-action`) scans full history as the backstop — so installing it
 locally is recommended but optional.
 
+## Design docs
+
+The locked decisions and their rationale live in `docs/`:
+
+- [Project Design](docs/PROJECT_DESIGN.md) — goals, scope, and what's deliberately left out.
+- [Backend Design](docs/BACKEND_DESIGN.md) — Hono + Postgres, auth, the access-control contract.
+- [Frontend Design](docs/FRONTEND_DESIGN.md) — Vite + React, data fetching, error handling.
+- [Tooling Design](docs/TOOLING_DESIGN.md) — TypeScript/lint/test choices and the `AGENTS.md` protocol.
+
+Agent steering lives in [`AGENTS.md`](AGENTS.md) (and the per-topic `docs/agents/*`).
+
 A fuller README (stack, project structure, development workflow, deploy, and
 skills) ships closer to launch.

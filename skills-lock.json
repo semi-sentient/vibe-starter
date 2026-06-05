@@ -5,19 +5,19 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/commit/SKILL.md",
-      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "computedHash": "b780c90db1d4ba662210ca1733fe813c7b358b309f2349284f6778345a3cbe9a"
     },
     "grill-me": {
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/grill-me/SKILL.md",
-      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "computedHash": "fdf633621ac99b955d8f5581c16d23995abb31e03c25a6cb122fbe7e1157def5"
     },
     "grill-with-docs": {
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/grill-with-docs/SKILL.md",
-      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "computedHash": "53f735775f4472577414399d78dc2568babdf962c61d11874c51f6d2970a7d4b"
     },
     "handoff": {
       "source": "mattpocock/skills",
@@ -29,7 +29,7 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/prd-to-plan/SKILL.md",
-      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "computedHash": "33d6e0b4da3ef7204352d276abcb058aaa700e9c08db7b7279bd5e4f2017ce87"
     },
     "prototype": {
       "source": "mattpocock/skills",
@@ -41,19 +41,19 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/run-plan/SKILL.md",
-      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "computedHash": "9c0d9b920b3bf6109cf9aeacf069d5901a656a12a54de4fb8585e9e84df7b848"
     },
     "tdd": {
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/tdd/SKILL.md",
-      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "computedHash": "22ff2984e82c6fd606267a55de50b87fa7a8e62d9ce8c7d31f562ec1b3836848"
     },
     "write-a-prd": {
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/write-a-prd/SKILL.md",
-      "computedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "computedHash": "6fa173496a4893379a7f0e191679af3b0b9dd7f9343d3446def7825cd7fc65d9"
     }
   }
 }
