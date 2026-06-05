@@ -10,9 +10,9 @@ does once.
 > Standing up the live Railway project, entering secrets, enabling PR previews, and
 > registering the live Stripe webhook are **manual, human-in-the-loop** actions —
 > they need a Railway account and live keys and are intentionally not automated.
-> The full pre-launch hardening pass (the "Ready for real users?" checklist) is
-> tracked separately and extends the [Going to production](#going-to-production)
-> section below.
+> The full pre-launch hardening pass — the [Ready for real users?](#ready-for-real-users)
+> checklist at the end of this file — is the gate you run once the wiring below is
+> done (see also [Going to production](#going-to-production)).
 
 ## Architecture: one public origin
 
@@ -152,6 +152,27 @@ Railway can spin up an ephemeral environment per pull request.
 - Previews should use **test-mode** Stripe keys and their **own** webhook endpoint
   (or skip Stripe). Don't point a preview at the live webhook.
 
+## Resend: real sign-in (and contact) email
+
+With `RESEND_API_KEY` unset the magic-link code is printed to the api **server
+log** — fine for a demo, useless for real users (they never see your logs). Wire
+up [Resend](https://resend.com) before launch.
+
+1. **Create a Resend account** and an API key: Dashboard → API Keys → **Create
+   API Key**. Copy the `re_…` value into the api service's `RESEND_API_KEY` (see
+   the env table above).
+2. **Verify a sending domain** (the important step): Dashboard → Domains → **Add
+   Domain**, then add the **DNS records Resend shows** (SPF/DKIM, and a return-
+   path/MX record) at your DNS provider. Verification can take a few minutes to
+   propagate.
+    > **Until a domain is verified, Resend only delivers to your _own_ account
+    > email.** Sign-in codes (and contact-form mail) to anyone else will silently
+    > not arrive. Verify the domain _before_ inviting real users.
+3. **Set the `from` address to your verified domain.** The shipped wrapper
+   (`src/server/email/resend.ts`) sends from Resend's shared `onboarding@resend.dev`
+   sender; once your domain is verified, change `FROM` there (and in any wrapper
+   you added, e.g. the contact-form tutorial) to `you@your-verified-domain`.
+
 ## Stripe live webhook
 
 Payments are confirmed server-side by the webhook (`POST /api/stripe/webhook`,
@@ -165,7 +186,28 @@ raw-body signature verified, CSRF-exempt), so it must reach the deployed api.
 3. Subscribe to the Checkout events the server handles (at minimum
    `checkout.session.completed`).
 4. Copy the endpoint's **Signing secret** (`whsec_…`) into the api service's
-   `STRIPE_WEBHOOK_SECRET`, and set `STRIPE_SECRET_KEY` to the matching live key.
+   `STRIPE_WEBHOOK_SECRET`, and swap `STRIPE_SECRET_KEY` from your dev `sk_test_…`
+   to the matching **live** `sk_live_…` key (Developers → API keys, live mode).
+   The signing secret and the secret key must both be from the **same mode** —
+   a test secret against a live webhook (or vice-versa) fails signature
+   verification and the payment never confirms.
+
+## Optional: a custom domain
+
+Railway gives each web service a `*.up.railway.app` domain that works out of the
+box. To serve the app on your own domain instead:
+
+1. **Add the domain in Railway** (web service → Settings → Networking → **Custom
+   Domain**). Railway shows the DNS record(s) to create.
+2. **Point your registrar's DNS** at Railway: add the **CNAME** (or the records
+   Railway specifies) at your DNS provider for the host you're using
+   (e.g. `app.example.com`). Wait for it to verify.
+3. **Update `APP_ORIGIN`** on the api service to the custom origin
+   (`https://app.example.com`, no trailing slash) and redeploy. `APP_ORIGIN`
+   drives magic-link redirect URLs and the CSRF Origin check, so a stale value
+   bounces logins to the old domain.
+4. **Update the Stripe webhook endpoint URL** (and any OAuth/redirect URLs) to
+   the new origin + `/api/stripe/webhook`.
 
 ## Branch protection
 
@@ -181,12 +223,84 @@ Configure on GitHub (Settings → Branches → add a rule for `main`).
 
 ## Going to production
 
-The wiring above gets the app **deployed**. The pre-launch hardening pass — rotating
-real secrets, swapping Stripe/Resend to live keys, the first-feature tutorial, and the
-full **"Ready for real users?"** checklist — is documented separately and **extends
-this file** (it builds on the env table and the Stripe/Resend steps here rather than
-restating them). Treat everything above as "it's live and reachable"; treat that
-checklist as "it's safe for real users."
+The wiring above gets the app **deployed and reachable**. Two more one-time
+**dashboard/GitHub actions** finish the automation, and then the
+[Ready for real users?](#ready-for-real-users) checklist below is the gate that
+takes you from "it's live" to "it's safe for real customers."
+
+One-time repo/dashboard settings to confirm:
+
+- **Enable "Allow GitHub Actions to create and approve pull requests."** GitHub →
+  repo **Settings → Actions → General → Workflow permissions**. Without it,
+  [release-please](https://github.com/googleapis/release-please) cannot open its
+  release PR, so versioning + the changelog never get cut.
+- **Auto-deploy and PR previews are dashboard toggles, not code.** Continuous
+  deploy from `main` and per-PR preview environments are enabled in the Railway
+  dashboard (see [Continuous deploy](#continuous-deploy-from-main) and
+  [PR preview environments](#pr-preview-environments) above) — they're
+  human-in-the-loop and aren't wired up by anything in the repo.
+
+## Ready for real users?
+
+This is the canonical pre-launch checklist (there is intentionally **no separate
+`LAUNCH_CHECKLIST.md`** — this section is it). The setup above gets you a live
+deployment; this is the **gate** you run before pointing real customers at it,
+especially before taking real payments. If anything below is unchecked, you're
+not ready yet. It's your own self-review, not an external audit.
+
+**Access control is intact.**
+
+- [ ] Admin-only routes are gated with `requireRole('admin')`.
+- [ ] User-owned queries filter by the current user — a customer can never reach
+      another customer's row (no IDOR).
+- [ ] The access-control anchor test passes (see `docs/BACKEND_DESIGN.md`).
+
+**Secrets are safe.**
+
+- [ ] Every secret lives in an env var, never in code — `gitleaks` reports clean
+      (the pre-commit hook + CI full-history scan).
+- [ ] `.env` is gitignored and was never committed.
+
+**Stripe is production-ready.**
+
+- [ ] Swapped from test-mode to **live-mode** keys (`sk_live_…` + the live
+      webhook's `whsec_…`).
+- [ ] The webhook signature is verified against the **raw request body**, and
+      you've run the full flow end-to-end with a real card.
+- [ ] Payment status comes from the **webhook**, never from the client redirect.
+
+**The database is protected.**
+
+- [ ] Backups are enabled (Railway Postgres backup add-on) and you've confirmed
+      you know how to restore one.
+
+**Production config is correct.**
+
+- [ ] All required env vars are set in the Railway **production** environment.
+- [ ] The app fails loudly at startup on a missing/malformed var (the zod env
+      validation in `src/env.ts`).
+
+**You can see what's happening.**
+
+- [ ] The root error boundary works (a friendly error, not a white screen).
+- [ ] Structured logging is on and you know how to find errors in the Railway logs.
+
+**It works on a phone.**
+
+- [ ] A quick pass on a real phone or device emulator — most customers are mobile.
+
+**Legal & safety basics.**
+
+- [ ] A privacy policy and terms of service are published.
+- [ ] **If your app handles children's or other sensitive personal data:** get the
+      appropriate consent (e.g. **parental consent** before collecting anything
+      about a child) and collect the **minimum** data you need, deleting what you
+      don't.
+
+> The children's-data note is a COPPA-style "minimize and get parental consent"
+> guideline — **not legal advice.** Handling children's or other sensitive
+> personal data carries real legal obligations that vary by jurisdiction; if
+> you're unsure, consult a professional before launch.
 
 ## Two-origin escape hatch
 
