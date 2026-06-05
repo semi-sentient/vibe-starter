@@ -30,37 +30,56 @@ export const roleEnum = pgEnum('role', ['admin', 'user']);
 - **`admin`** — can manage all users' data and reach admin-only routes.
 - **`user`** — can only access their own rows. The default for self-signup.
 
-`admin` is granted via the **`ADMIN_EMAILS`** env allowlist (comma-separated,
-case-insensitive), **re-asserted on every login**. Everyone else is a `user`.
-Open self-signup is the default — the app is never invite-only.
+Roles are **durable and upgrade-only**: the stored `users.role` is the source of
+truth, and a login can only ever *raise* it, never lower it. `admin` is reached
+via two upgrade signals — the **`ADMIN_EMAILS`** env allowlist (comma-separated,
+case-insensitive) and **invites** — and absence of any signal on a login
+preserves the stored role. Everyone else is a `user`. Open self-signup is the
+default — the app is never invite-only.
+
+`ADMIN_EMAILS` is a **bootstrap + break-glass** mechanism, not the ongoing
+management surface: membership guarantees a login resolves to *at least* `admin`
+and never demotes. Set it once to mint the first admin, then invite the rest from
+inside the app. Removing an email does NOT revoke that user's `admin` (see below).
 
 ```bash
-# .env — these emails get the admin role at login.
+# .env — bootstrap/break-glass: these emails resolve to at least admin at login.
 ADMIN_EMAILS=owner@example.com,ops@example.com
 ```
 
-### Invites (the out-of-band escape hatch)
+### Invites (grant a durable role out-of-band)
 
 For granting an elevated role to an email that is NOT on the allowlist, an admin
 can create an invite (`POST /api/invites`, `requireRole('admin')`). The role is
-applied on that email's **next** login, when `verifyCode` consumes the invite.
+applied on that email's **next** login, when `verifyCode` consumes the one-shot
+invite. Because roles are durable, the grant **persists** — an invited admin stays
+admin on every subsequent login, with no need to also add them to `ADMIN_EMAILS`.
 
-Login role precedence (`src/auth/magic-link.ts`):
+Login role resolution (`src/auth/magic-link.ts`) — durable + upgrade-only:
 
 ```ts
-// ADMIN_EMAILS wins (and short-circuits); otherwise a pending invite is
-// CONSUMED and its role used; with no invite, the role is 'user'.
-async function resolveRole(email: string): Promise<Role> {
+// The login SIGNAL: ADMIN_EMAILS wins (and short-circuits); otherwise a pending
+// invite is CONSUMED (one-shot) and its role is the signal; else no signal.
+async function resolveRoleSignal(email: string): Promise<Role | null> {
 	if (env.ADMIN_EMAILS.includes(email)) return 'admin';
 	const invite = await consumeInvite(email);
-	return invite?.role ?? 'user';
+	return invite?.role ?? null;
+}
+
+// New user → the signal, else 'user'. Existing user → the higher-privilege of
+// their stored role and the signal, so a login only ever UPGRADES; no signal
+// preserves the stored role. A returning user is never silently demoted.
+async function resolveLoginRole(email: string, existing: Role | null): Promise<Role> {
+	const signal = await resolveRoleSignal(email);
+	if (existing === null) return signal ?? 'user';
+	return signal === null ? existing : higherRole(existing, signal);
 }
 ```
 
-Because an invite is **one-shot** (consumed on use) and the role is re-asserted
-every login, an invited-admin who is not in `ADMIN_EMAILS` reverts to `user` on
-their next login. Durable admins belong in `ADMIN_EMAILS`; invites are a one-time
-grant.
+**Revocation (lowering a role) is intentionally out of scope** here — it is an
+extension point. Add an explicit admin action that writes the lower role directly
+(e.g. a `requireRole('admin')`-gated "demote" endpoint); do NOT make it a login
+side effect, so the admin set can't churn silently as `ADMIN_EMAILS` is edited.
 
 ## Adding a protected route
 

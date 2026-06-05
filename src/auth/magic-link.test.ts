@@ -98,19 +98,67 @@ describe('verifyCode', () => {
 		expect(user?.role).toBe('admin');
 	});
 
-	it('re-asserts role on every login (demotes when removed from the allowlist)', async () => {
+	it('never demotes: an admin removed from the allowlist keeps admin on next login', async () => {
 		// First login while allowlisted → admin.
 		env.ADMIN_EMAILS.push('shifting@example.com');
 		await requestCode('shifting@example.com');
 		await verifyCode('shifting@example.com', await issuedCodeFor('shifting@example.com'));
 
-		// Removed from the allowlist; next login must demote to user.
+		// Removed from the allowlist. Roles are durable + upgrade-only, so with no
+		// signal on this login the stored `admin` is PRESERVED, not recomputed away.
+		// (Revocation is an explicit, out-of-band action — not a login side effect.)
 		env.ADMIN_EMAILS.splice(0, env.ADMIN_EMAILS.length);
 		await requestCode('shifting@example.com');
 		await verifyCode('shifting@example.com', await issuedCodeFor('shifting@example.com'));
 
 		const [user] = await db.select().from(users).where(eq(users.email, 'shifting@example.com'));
-		expect(user?.role).toBe('user');
+		expect(user?.role).toBe('admin');
+	});
+
+	it('upgrades an existing user added to the allowlist (break-glass)', async () => {
+		const existing = await createUser({ email: 'promote@example.com', role: 'user' });
+
+		env.ADMIN_EMAILS.push('promote@example.com');
+		await requestCode('promote@example.com');
+		await verifyCode('promote@example.com', await issuedCodeFor('promote@example.com'));
+
+		const [user] = await db.select().from(users).where(eq(users.email, 'promote@example.com'));
+		expect(user?.id).toBe(existing.id); // same row, upgraded in place
+		expect(user?.role).toBe('admin');
+	});
+
+	it('keeps an existing admin (invite already consumed, not allowlisted) admin on re-login', async () => {
+		// Models the core bug: invited as admin (invite long since consumed), NOT in
+		// ADMIN_EMAILS. A later login has no signal, so the durable admin must stick.
+		await createUser({ email: 'invited-admin@example.com', role: 'admin' });
+
+		await requestCode('invited-admin@example.com');
+		await verifyCode('invited-admin@example.com', await issuedCodeFor('invited-admin@example.com'));
+
+		const [user] = await db
+			.select()
+			.from(users)
+			.where(eq(users.email, 'invited-admin@example.com'));
+		expect(user?.role).toBe('admin');
+	});
+
+	it('upgrades an existing user when a pending invite is consumed', async () => {
+		const inviter = await createUser({ email: 'inviter@example.com', role: 'admin' });
+		const existing = await createUser({ email: 'returning@example.com', role: 'user' });
+		await createInvite('returning@example.com', 'admin', inviter.id);
+
+		await requestCode('returning@example.com');
+		await verifyCode('returning@example.com', await issuedCodeFor('returning@example.com'));
+
+		const [user] = await db.select().from(users).where(eq(users.email, 'returning@example.com'));
+		expect(user?.id).toBe(existing.id);
+		expect(user?.role).toBe('admin');
+		// The invite is still one-shot — consumed by this login.
+		const inviteRows = await db
+			.select()
+			.from(invites)
+			.where(eq(invites.email, 'returning@example.com'));
+		expect(inviteRows).toHaveLength(0);
 	});
 
 	it('grants the invited role on first login and consumes the invite', async () => {

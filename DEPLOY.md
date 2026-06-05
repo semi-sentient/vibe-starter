@@ -101,18 +101,19 @@ by `vite build`), so changing them requires a rebuild/redeploy, not just a resta
 
 ### api service (runtime)
 
-| Variable                | Required | Notes                                                                                            |
-| ----------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`          | ✅       | Use Railway Postgres's **private** URL. Reference it as `${{Postgres.DATABASE_PRIVATE_URL}}`.    |
-| `APP_ORIGIN`            | ✅       | The web service's **public** origin, no trailing slash (e.g. `https://app.example.com`).         |
-| `SESSION_SECRET`        | ✅       | ≥32 chars. Generate with `openssl rand -base64 36`.                                              |
-| `STRIPE_SECRET_KEY`     | ✅       | **Live** key (`sk_live_…`) in production.                                                        |
-| `STRIPE_WEBHOOK_SECRET` | ✅       | The `whsec_…` from the **live** webhook endpoint you create below.                               |
-| `NODE_ENV`              | —        | Set to `production`. (`Dockerfile.api` already defaults it; set it explicitly to be safe.)       |
-| `ADMIN_EMAILS`          | —        | Comma-separated emails granted the `admin` role at login. Blank = no admins.                     |
-| `RESEND_API_KEY`        | —        | Sends magic-link emails. **Unset = login codes are printed to the server log** (fine for a demo, |
-|                         |          | not for real users). Set a real key before launch.                                               |
-| `ANTHROPIC_API_KEY`     | —        | Unused by shipped code; a validated slot for builders adding AI features.                        |
+| Variable                | Required | Notes                                                                                             |
+| ----------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | ✅       | Use Railway Postgres's **private** URL. Reference it as `${{Postgres.DATABASE_PRIVATE_URL}}`.     |
+| `APP_ORIGIN`            | ✅       | The web service's **public** origin, no trailing slash (e.g. `https://app.example.com`).          |
+| `SESSION_SECRET`        | ✅       | ≥32 chars. Generate with `openssl rand -base64 36`.                                               |
+| `STRIPE_SECRET_KEY`     | ✅       | **Live** key (`sk_live_…`) in production.                                                         |
+| `STRIPE_WEBHOOK_SECRET` | ✅       | The `whsec_…` from the **live** webhook endpoint you create below.                                |
+| `NODE_ENV`              | —        | Set to `production`. (`Dockerfile.api` already defaults it; set it explicitly to be safe.)        |
+| `ADMIN_EMAILS`          | —        | Bootstrap/break-glass: comma-separated emails that resolve to ≥ `admin` at login (never demoted). |
+|                         |          | Set once to mint the first admin, then invite the rest in-app (invites are durable). Blank is OK. |
+| `RESEND_API_KEY`        | —        | Sends magic-link emails. **Unset = login codes are printed to the server log** (fine for a demo,  |
+|                         |          | not for real users). Set a real key before launch.                                                |
+| `ANTHROPIC_API_KEY`     | —        | Unused by shipped code; a validated slot for builders adding AI features.                         |
 
 > `PORT`: not needed. The server listens on a fixed `3000` and the web service
 > proxies to `${API_UPSTREAM}` (default `…:3000`). If you expose the api publicly on

@@ -11,7 +11,11 @@ import { integer, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/p
  * `invites`/`rate_limit_counters`/`orders`, all reusing `roleEnum`.
  */
 
-/** The two roles the app ships with. `admin` is granted via the `ADMIN_EMAILS` allowlist (added in P4). */
+/**
+ * The two roles the app ships with. Roles are durable + upgrade-only: a login
+ * can raise the stored role (via the `ADMIN_EMAILS` allowlist or an invite) but
+ * never lowers it. `admin` is the elevated role; `user` the default (added in P4).
+ */
 export const roleEnum = pgEnum('role', ['admin', 'user']);
 
 /**
@@ -23,7 +27,8 @@ export const orderStatusEnum = pgEnum('order_status', ['pending', 'paid', 'refun
 
 /**
  * User accounts. Rows are auto-created on first magic-link login (P4); `role`
- * defaults to `'user'` and is re-asserted to `'admin'` for allowlisted emails.
+ * defaults to `'user'`. It is durable + upgrade-only — a login can raise it to
+ * `'admin'` (allowlisted email or a consumed invite) but never demotes it.
  */
 export const users = pgTable('users', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -63,13 +68,14 @@ export const sessions = pgTable('sessions', {
 });
 
 /**
- * Out-of-band role grants (P5). The `admin` role is normally granted via the
- * `ADMIN_EMAILS` allowlist; an invite is the escape hatch for granting an
+ * Out-of-band role grants (P5). The `admin` role is reached via the
+ * `ADMIN_EMAILS` allowlist or an invite — the escape hatch for granting an
  * elevated role to an email that is NOT on the allowlist. `email` is the primary
  * key (one pending invite per email), so `createInvite` upserts on it. On the
  * next successful login `verifyCode` calls `consumeInvite(email)` — the row is
- * read and deleted, and its `role` wins over the default `'user'`. Open signup is
- * unaffected: an email with no invite still resolves to `'user'`.
+ * read and deleted (one-shot) and its `role` becomes the login's upgrade signal,
+ * granting a DURABLE role that persists on later logins. Open signup is
+ * unaffected: an email with no invite (and not allowlisted) resolves to `'user'`.
  */
 export const invites = pgTable('invites', {
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -381,7 +381,7 @@ sequenceDiagram
   API->>DB: Lookup auth_codes(email)
   API->>API: Validate code, expiry, attempts
   API->>DB: Upsert users(email) — auto-create on first login
-  API->>API: Set role = admin if email in ADMIN_EMAILS, else user
+  API->>API: Resolve role (durable + upgrade-only): keep stored role, raise to admin on signal
   API->>DB: Insert sessions(userId, id, expiresAt)
   API-->>Web: Set-Cookie: sid=<session>
   Web-->>User: Logged in
@@ -403,15 +403,15 @@ Reasoning: passwords are a security liability and a UX cost. Magic links elimina
 **2. Open self-signup.** Anyone can request a magic-link code. On the first successful verify, a `user` account is auto-created — customers self-register, no invite required. The app is **not** invite-only; open signup is the default.
 
 ```typescript
-// On verify success:
-const isAdmin = env.ADMIN_EMAILS.includes(email.toLowerCase());
+// On verify success. Roles are durable + UPGRADE-ONLY: a login signal
+// (ADMIN_EMAILS membership, or a consumed invite) can RAISE the stored role,
+// but absence of a signal preserves it — a returning user is never demoted.
+const [existing] = await db.select({ role: users.role }).from(users).where(eq(users.email, email));
+const role = await resolveLoginRole(email, existing?.role ?? null);
 const [user] = await db
 	.insert(users)
-	.values({ email, role: isAdmin ? 'admin' : 'user' })
-	.onConflictDoUpdate({
-		target: users.email,
-		set: { role: isAdmin ? 'admin' : 'user' }, // re-assert role on each login
-	})
+	.values({ email, role })
+	.onConflictDoUpdate({ target: users.email, set: { role } })
 	.returning();
 ```
 
@@ -428,7 +428,14 @@ export const roleEnum = pgEnum('role', [
 ]);
 ```
 
-The `admin` role is granted via the **`ADMIN_EMAILS`** env allowlist (comma-separated), re-asserted at every login. Everyone else is a `user`. An optional `invites` table MAY be retained as an escape hatch for granting elevated roles out-of-band, but it is not on the default path.
+Roles are **durable and upgrade-only**. The stored `users.role` is the source of truth; a login can only ever _raise_ it, never lower it. On each login the role resolves to the higher-privilege of the stored role and the login _signal_ — and absence of a signal preserves the stored role (so a returning user is never silently demoted).
+
+The `admin` role is reached via two signals: the **`ADMIN_EMAILS`** env allowlist (comma-separated, case-insensitive), and **invites** (the `invites` table). Both only upgrade:
+
+- **`ADMIN_EMAILS` is a bootstrap + break-glass mechanism, not the ongoing management surface.** Membership guarantees a login resolves to _at least_ `admin`; it never demotes. Set it once to mint the first admin, then invite the rest from inside the app. Removing an email from the list does **not** revoke that user's `admin` — revocation is a separate, explicit action (see below).
+- **Invites grant a durable role.** An admin invites an email (`POST /api/invites`); the grant applies on that email's next login, when `verifyCode` consumes the one-shot invite. Because the role is now durable, the invited admin stays admin on every subsequent login — no need to also add them to `ADMIN_EMAILS`. Open self-signup is unaffected: an email with no signal is a `user`.
+
+**Revocation (lowering a role) is intentionally out of scope for the base** and is an extension point: add an explicit admin action (e.g. `DELETE /api/users/:id/role` or a "demote" endpoint, gated by `requireRole('admin')`) that writes the lower role directly. It is deliberately NOT a login side effect, so the set of admins can't churn silently as `ADMIN_EMAILS` is edited.
 
 The `requireRole()` middleware gates admin routes:
 
@@ -484,7 +491,7 @@ This is documented as a graduation path, like Redis is for the data store. It is
 A skill is shipped upfront in the starter at `.agents/skills/auth/SKILL.md` (and equivalent paths for other agent harnesses) documenting:
 
 - How to add a new protected route (use `requireRole('admin')`).
-- The role model (`admin` / `user`) and how `ADMIN_EMAILS` grants `admin`.
+- The role model (`admin` / `user`) — durable + upgrade-only — and how `ADMIN_EMAILS` and invites raise a role to `admin`.
 - The ownership rule — user-owned queries always filter by `userId = c.var.user.id` unless the caller is `admin` — with copy-paste examples for read and mutate paths.
 - How the auth scaffold is structured (so the agent doesn't reinvent it).
 - The optional multi-tenant escape hatch, in case the project grows into a true multi-tenant SaaS.
