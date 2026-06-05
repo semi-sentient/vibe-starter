@@ -18,7 +18,20 @@ This codebase will outlive you. Every shortcut you take becomes someone else's b
 **Formatting** — Sort alphabetically: imports, exports, object keys, JSON keys, destructured props.
 **File Naming** — PascalCase (`UserSettings.tsx`) for components; camelCase with `use` prefix (`useUserSettings.ts`) for hooks; kebab-case (`date-formatters.ts`) for modules; tests add `.test` before extension.
 **TypeScript** — Never `any` (use `unknown`); `interface` > `type` for entities; `as const` > `enum`.
+**Vendored Code** — Files emitted by an external CLI (notably shadcn/ui output under `src/web/components/ui/`) are third-party. Leave them as the tool generates them — they're exempt from the naming, alphabetical-ordering, return-type, and documentation conventions above, so the CLI can update them in place. Restyle via theme tokens (see `docs/agents/ui-components.md`); don't hand-edit.
 **Priority Order** — When guidelines conflict: 1. Type safety → 2. User experience → 3. Maintainability → 4. Test coverage → 5. Formatting
+
+## Topic Documentation
+
+Before planning or writing code, check the table below. If your task matches a row, read that documentation file first. Only read files relevant to the current task.
+
+| When task involves…                                                                   | Documentation                   |
+| ------------------------------------------------------------------------------------- | ------------------------------- |
+| Creating or modifying any source file (inline comments, JSDoc, public-interface docs) | `docs/agents/documentation.md`  |
+| Creating or modifying components, custom hooks, or context providers                  | `docs/agents/react-patterns.md` |
+| Writing or updating unit tests                                                        | `docs/agents/testing.md`        |
+| Styling, layout, theming, Tailwind/shadcn usage, or any component with JSX            | `docs/agents/ui-components.md`  |
+| Calling external APIs or using MCP server tools                                       | `docs/agents/mcp-usage.md`      |
 
 ## Plan Mode
 
