@@ -2,12 +2,15 @@
 #
 # One-time (idempotent) project setup. Safe to re-run.
 #
-#   bash scripts/bootstrap.sh [new-project-name]
+#   bash scripts/bootstrap.sh [project-name]
 #
 # Steps:
 #   1. Create .env from .env.example if it doesn't exist.
-#   2. Rename the project in package.json — only when a name argument is given,
-#      so re-running without an arg never double-renames.
+#   2. Reset downstream release state and rename the project: pick a project name
+#      (arg > interactive prompt > the repo directory name) and hand it, with the
+#      git origin, to scripts/reset-release-state.mjs. That module owns the guards
+#      and idempotency — it no-ops on the upstream template, on the default name,
+#      and on an already-renamed package — so this step always calls it.
 #   3. Generate a SESSION_SECRET in .env if one isn't already present.
 #   4. Print next steps.
 
@@ -18,8 +21,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
-NEW_NAME="${1:-}"
-
 # 1. Create .env from the template if absent.
 if [ ! -f .env ]; then
 	cp .env.example .env
@@ -28,16 +29,21 @@ else
 	echo ".env already exists — leaving it untouched."
 fi
 
-# 2. Rename the project only if a name was supplied (keeps re-runs idempotent).
-if [ -n "$NEW_NAME" ]; then
-	if grep -q '"name": "vibe-starter"' package.json; then
-		sed -i.bak "s/\"name\": \"vibe-starter\"/\"name\": \"$NEW_NAME\"/" package.json
-		rm -f package.json.bak
-		echo "Renamed project to \"$NEW_NAME\" in package.json."
-	else
-		echo "Project name is not the default \"vibe-starter\" — skipping rename."
-	fi
+# 2. Reset release state and rename the project. Pick the name from (in order):
+#    an explicit argument, an interactive prompt, or the repo directory name. The
+#    module decides whether anything actually changes (see its guards).
+DEFAULT_NAME="$(basename "$REPO_ROOT")"
+if [ -n "${1:-}" ]; then
+	NAME="$1"
+elif [ -t 0 ]; then
+	read -r -p "Project name [$DEFAULT_NAME]: " NAME
+	NAME="${NAME:-$DEFAULT_NAME}"
+else
+	NAME="$DEFAULT_NAME"
 fi
+
+ORIGIN="$(git remote get-url origin 2>/dev/null || true)"
+node "$REPO_ROOT/scripts/reset-release-state.mjs" "$NAME" "$ORIGIN"
 
 # 3. Generate SESSION_SECRET if not already set (forward-compatible; used by auth later).
 if ! grep -q "^SESSION_SECRET=" .env; then
