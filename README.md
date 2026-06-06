@@ -4,26 +4,25 @@ An opinionated, MIT-licensed full-stack TypeScript starter: Vite + React on the 
 
 It ships passwordless (magic-link) auth, server-side sessions, two-role access control, Stripe-hosted Checkout, structured logging, a Vitest harness, and a Dockerized deploy — so day one is spent building your feature, not your plumbing.
 
-> **This is a snapshot, not a dependency.** You created your repo from this template, so you _own_ the code outright — there's nothing to `npm update` back to. The starter will keep evolving upstream; to decide whether a later improvement is worth porting in by hand, skim the [CHANGELOG](CHANGELOG.md) (maintained by release-please from conventional commits). Most of the time you won't need to — your fork is yours.
+> **This is a snapshot, not a dependency.** You created your repo from this template, so you _own_ the code outright — there's nothing to `npm update` back to. The starter will keep evolving upstream; to decide whether a later improvement is worth porting in by hand, skim the [CHANGELOG](https://github.com/semi-sentient/vibe-starter/blob/main/CHANGELOG.md) (maintained by release-please from conventional commits). Most of the time you won't need to — your fork is yours.
 
 ## Quick Start
 
-Five commands from an empty checkout to a running dev server:
+Four commands from an empty checkout to a running dev server:
 
 ```bash
 git clone <your-new-repo-url> && cd <your-repo> # 1. clone your repo (from this template)
-npm install                                      # 2. install dependencies
-bash scripts/bootstrap.sh                        # 3. create .env + generate SESSION_SECRET
-docker compose up -d                             # 4. start local Postgres
-npm run dev                                       # 5. migrate (predev) + boot web :5173 / api :3000
+npm run setup                                    # 2. install + create .env + reset release state
+docker compose up -d                             # 3. start local Postgres
+npm run dev                                       # 4. migrate (predev) + boot web :5173 / api :3000
 ```
 
 Then open <http://localhost:5173> — you should see the Welcome page with a live `API ✓ connected` status badge.
 
 Notes:
 
-- Step 3 (`bootstrap.sh`) copies `.env.example` → `.env` and fills in a strong `SESSION_SECRET`; the defaults already match `docker-compose.yml`, so login works immediately. The 6-digit sign-in code prints to the **server console** until you add a `RESEND_API_KEY` (see [`.env.example`](.env.example)).
-- Step 5 runs migrations automatically (the `predev` hook calls `db:migrate`) before starting the servers, so the schema is always current.
+- Step 2 (`npm run setup`) installs dependencies, then bootstraps the repo: it copies `.env.example` → `.env` and fills in a strong `SESSION_SECRET`, and resets the release state for your new project. It prompts for a project name (default = the repo folder name; pass it non-interactively with `npm run setup -- my-app`) and rewrites `package.json` + the release-please config so your first release is a clean `v0.1.0`. The defaults in `.env` already match `docker-compose.yml`, so login works immediately. The 6-digit sign-in code prints to the **server console** until you add a `RESEND_API_KEY` (see [`.env.example`](.env.example)).
+- Step 4 runs migrations automatically (the `predev` hook calls `db:migrate`) before starting the servers, so the schema is always current.
 
 ## Stack
 
