@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). From this release on, the changelog is maintained automatically by [release-please](https://github.com/googleapis/release-please) from conventional commits on `main`.
 
+## [1.1.0](https://github.com/semi-sentient/vibe-starter/compare/vibe-starter-v1.0.0...vibe-starter-v1.1.0) (2026-06-06)
+
+
+### Added
+
+* access control, orders resource, and the auth skill (P5) ([8f1c8da](https://github.com/semi-sentient/vibe-starter/commit/8f1c8da99b30b82093e102e0e54db7773fb421fd)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+* add Drizzle ORM, users schema, and DB-aware health check ([35add46](https://github.com/semi-sentient/vibe-starter/commit/35add46cfa13ed26e481bb1c0dfcb4ed2b7f1a17)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+* magic-link auth end-to-end (P4) ([9d7b3eb](https://github.com/semi-sentient/vibe-starter/commit/9d7b3ebbcc6cd05b8f45ee36eeec72d9b3a7ebf8)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+* prefix PRD epic titles and auto-create their gh labels ([b2474ab](https://github.com/semi-sentient/vibe-starter/commit/b2474abc0c0b35214e0366a130ecd8ab0e08c4c6))
+* scaffold full-stack app skeleton (Vite + React 19 + Hono) ([e4ede73](https://github.com/semi-sentient/vibe-starter/commit/e4ede73109f3188495f88c0deff20b4420db8f79)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+* Stripe hosted Checkout vertical slice (P7) ([6686700](https://github.com/semi-sentient/vibe-starter/commit/66867009251f51eace970054c8f113ad1cfc5e25)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+* structured logging, env hardening, and background workers (P8) ([708fff1](https://github.com/semi-sentient/vibe-starter/commit/708fff1ae92fff872f1eb5b6c890e0cec9d44455)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+* Tailwind v4, shadcn/ui theme, Layout, and ErrorBoundary (P6) ([3097000](https://github.com/semi-sentient/vibe-starter/commit/309700044beb3c8495ae1f7d12193fa0fbf4123e)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+
+
+### Fixed
+
+* make user roles durable and upgrade-only ([0c9e26c](https://github.com/semi-sentient/vibe-starter/commit/0c9e26cbd2942594f9338b393fee472883dde88d)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+* serve the web app from the repo root to avoid the /api proxy clash ([152da4f](https://github.com/semi-sentient/vibe-starter/commit/152da4fadb4a503b23ebc9a0a791d8846166a2cd)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+* wire authed navigation so the checkout flow is reachable ([f76c475](https://github.com/semi-sentient/vibe-starter/commit/f76c475e794788258ddadaeaa912672a8df1ba08)), closes [#2](https://github.com/semi-sentient/vibe-starter/issues/2)
+
 ## [1.0.0] - 2026-06-05
 
 Initial release of the `vibe-starter` template: an opinionated, MIT-licensed, full-stack TypeScript starter (Vite + React SPA, Hono + PostgreSQL API, end-to-end type safety) built to let a solo builder and their AI agent ship a real, maintainable app.
