@@ -8,21 +8,21 @@ This document covers the frontend stack. For project-level decisions (audience, 
 
 ## Decision summary
 
-| Decision | Choice | Primary alternative considered |
-|---|---|---|
-| Build tool | **Vite** | Next.js, Remix, Create React App |
-| UI framework | **React 19** | Vue, Svelte, Solid |
-| Language | **TypeScript** | JavaScript |
-| Component library | **shadcn/ui + Tailwind CSS v4** | MUI, Mantine, Chakra |
-| Lists & tables | **shadcn `Table`**; TanStack Table behind a `<DataTable>` wrapper as the escape hatch | MUI X DataGrid, AG Grid |
-| Charts | **Not shipped** — reach for Recharts if a prototype needs them | Highcharts, ECharts, Chart.js, visx |
-| Theming | **Tailwind config + CSS variables** (shadcn tokens), inline & freely editable | Shared theme package |
-| Routing | **React Router v7** | TanStack Router, Next.js file-based |
-| Forms | **react-hook-form + zod** via shadcn `Form` | Formik, raw `useState` |
-| Data fetching | **TanStack Query** + Hono RPC client | SWR, raw `fetch`, RTK Query |
-| State | **Local + Context** for cross-component | Zustand, Redux, Jotai |
-| Payments UI | **Stripe-hosted Checkout** (redirect) | Embedded Stripe Elements |
-| Mobile | **Responsive only** (no PWA) | Installable PWA, separate mobile app |
+| Decision          | Choice                                                                                | Primary alternative considered       |
+| ----------------- | ------------------------------------------------------------------------------------- | ------------------------------------ |
+| Build tool        | **Vite**                                                                              | Next.js, Remix, Create React App     |
+| UI framework      | **React 19**                                                                          | Vue, Svelte, Solid                   |
+| Language          | **TypeScript**                                                                        | JavaScript                           |
+| Component library | **shadcn/ui + Tailwind CSS v4**                                                       | MUI, Mantine, Chakra                 |
+| Lists & tables    | **shadcn `Table`**; TanStack Table behind a `<DataTable>` wrapper as the escape hatch | MUI X DataGrid, AG Grid              |
+| Charts            | **Not shipped** — reach for Recharts if a prototype needs them                        | Highcharts, ECharts, Chart.js, visx  |
+| Theming           | **Tailwind config + CSS variables** (shadcn tokens), inline & freely editable         | Shared theme package                 |
+| Routing           | **React Router v7**                                                                   | TanStack Router, Next.js file-based  |
+| Forms             | **react-hook-form + zod** via shadcn `Form`                                           | Formik, raw `useState`               |
+| Data fetching     | **TanStack Query** + Hono RPC client                                                  | SWR, raw `fetch`, RTK Query          |
+| State             | **Local + Context** for cross-component                                               | Zustand, Redux, Jotai                |
+| Payments UI       | **Stripe-hosted Checkout** (redirect)                                                 | Embedded Stripe Elements             |
+| Mobile            | **Responsive only** (no PWA)                                                          | Installable PWA, separate mobile app |
 
 ---
 
@@ -42,7 +42,7 @@ Vite is the de facto standard for modern React SPAs. Cold start in milliseconds,
 
 - **Railway is the deploy target**, not Vercel. On Railway, Next.js runs as `next start` in a single Node container, losing the per-route serverless-functions value proposition that Vercel offers. The remaining benefits (file-based routing, Server Components) are real but smaller.
 - **Server vs Client Components is conceptual surface area** that adds complexity for a non-engineer. Even when the agent handles it correctly, when something breaks the human has to understand the boundary to debug it.
-- **A separate Hono backend is preferable here.** Next.js's API routes / Server Actions partially compete with Hono. Picking Hono *and* Next.js is awkward; picking Vite + Hono is clean.
+- **A separate Hono backend is preferable here.** Next.js's API routes / Server Actions partially compete with Hono. Picking Hono _and_ Next.js is awkward; picking Vite + Hono is clean.
 
 We may revisit Next.js if a marketing-site shape (where SEO and SSR matter materially) becomes the dominant kind of project people build with the starter.
 
@@ -88,7 +88,7 @@ React is verbose compared to Svelte and has weaker runtime performance than Soli
 
 **shadcn/ui** components styled with **Tailwind CSS v4**.
 
-This is a high-stakes decision because it shapes every UI a builder writes. shadcn/ui is not an npm dependency you import from — its components are copied *into* your repo as plain React + Tailwind source you own and can edit. Tailwind provides the styling primitives; shadcn provides the accessible, well-structured components built on top of Radix UI primitives.
+This is a high-stakes decision because it shapes every UI a builder writes. shadcn/ui is not an npm dependency you import from — its components are copied _into_ your repo as plain React + Tailwind source you own and can edit. Tailwind provides the styling primitives; shadcn provides the accessible, well-structured components built on top of Radix UI primitives.
 
 ### Why shadcn/ui + Tailwind
 
@@ -102,12 +102,12 @@ This is a high-stakes decision because it shapes every UI a builder writes. shad
 
 ### The enforcement concern, and how we address it
 
-The honest weakness of Tailwind/shadcn — and historically the strongest argument *against* it — is that it is highly *themeable* but weak on *enforcement*. Arbitrary utility values like `bg-[#f00]`, `text-[13px]`, or `rounded-[3px]` silently bypass the design tokens with no compile or type error. For a non-engineer + agent audience that takes the path of least resistance, an unconstrained Tailwind setup quietly degrades the design system into a suggestion, and the app drifts off-brand one one-off value at a time.
+The honest weakness of Tailwind/shadcn — and historically the strongest argument _against_ it — is that it is highly _themeable_ but weak on _enforcement_. Arbitrary utility values like `bg-[#f00]`, `text-[13px]`, or `rounded-[3px]` silently bypass the design tokens with no compile or type error. For a non-engineer + agent audience that takes the path of least resistance, an unconstrained Tailwind setup quietly degrades the design system into a suggestion, and the app drifts off-brand one one-off value at a time.
 
 We mitigate this deliberately. This is how we keep a non-engineer's app on-brand:
 
 - **(a) A curated set of shadcn components + design tokens as CSS variables.** The starter ships only token-based components, and the palette/typography/spacing/radii live as CSS variables in `globals.css` (see Theming). Components read from these tokens, so the default path is the on-brand path.
-- **(b) A lint rule discouraging arbitrary Tailwind values.** An ESLint / Tailwind `no-arbitrary-value`-style rule flags `bg-[...]`, `text-[...]`, and friends, so going off-token takes a deliberate, visible step rather than happening by accident. It's CI-enforced (zero-warnings — see `TOOLING_DESIGN.md`), which is what turns the design system from a suggestion into a contract.
+- **(b) A lint rule discouraging arbitrary Tailwind values.** An ESLint / Tailwind `no-arbitrary-value`-style rule flags `bg-[...]`, `text-[...]`, and friends, so going off-token takes a deliberate, visible step rather than happening by accident. It's CI-enforced (zero-warnings — see `TOOLING_DESIGN.md`), which is what turns the design system from a suggestion into a contract. One blind spot to self-enforce: the rule only matches bracketed `[...]` syntax, so raw palette classes (`text-green-700`, `bg-red-500`) slip past it — they're equally off-token and equally disallowed, but the agent has to hold that line itself (see `docs/agents/ui-components.md`).
 - **(c) The `cn()` / `tailwind-merge` utility.** shadcn's standard `cn()` helper (clsx + `tailwind-merge`) composes class lists predictably and resolves conflicts, so variant overrides stay sane instead of producing duplicated, fighting classes.
 
 Together these recover most of the discipline a closed component library gives you for free, while keeping the ownership, aesthetic, and licensing wins.
@@ -154,7 +154,7 @@ Theme via **Tailwind configuration + CSS variables** (shadcn's `:root` design to
 
 ### Why
 
-The palette, typography scale, spacing, and radii live as CSS variables in `globals.css` (e.g. `--primary`, `--background`, `--radius`), and Tailwind's config maps utilities onto those tokens. shadcn components reference the tokens, so re-skinning the whole app is mostly a matter of editing a handful of CSS variables — exactly the kind of change a non-engineer can make safely with their agent.
+The palette, typography scale, spacing, and radii live as CSS variables in `globals.css` (e.g. `--primary`, `--background`, `--radius`), and Tailwind's config maps utilities onto those tokens. Beyond the stock shadcn tokens, the starter adds first-class `--success` / `--warning` tokens (defined in `:root`, `.dark`, and `@theme inline`, so `bg-success` / `text-warning` work like any other token); add new tokens the same way rather than reaching for a raw value. shadcn components reference the tokens, so re-skinning the whole app is mostly a matter of editing a handful of CSS variables — exactly the kind of change a non-engineer can make safely with their agent.
 
 Keeping the theme inline (rather than in a published, versioned package) is the right call at side-project scale:
 
@@ -195,15 +195,15 @@ If an embedded card form is ever required (rare), **Stripe Elements** (`@stripe/
 
 ## Routing, forms, data fetching, state
 
-These are smaller decisions that the agent would otherwise make per-file. Standardizing them in the starter (and AGENTS.md) prevents per-project variance.
+These are smaller decisions that the agent would otherwise make per-file. Standardizing them in the starter (and AGENTS.md) prevents per-project variance. The concrete, copy-paste-level conventions for components, hooks, context providers, and styling live in the topic docs `AGENTS.md` routes to — `docs/agents/react-patterns.md` and `docs/agents/ui-components.md` — which the agent reads before touching the relevant code.
 
-| Concern | Choice | Rationale |
-|---|---|---|
-| **Routing** | React Router v7 | Mature, well-known, minimal API. TanStack Router is more powerful but adds a learning surface for marginal benefit. |
-| **Forms** | `react-hook-form` + `zod` resolver, via shadcn's `Form` components | The shadcn `Form` wraps react-hook-form with accessible labels/messages. The validation schema is a `z.object({...})` — same shape as backend validation in Hono. Forms are typed end-to-end. Raw `useState` is permitted for trivial single-input forms. |
-| **Data fetching** | `@tanstack/react-query` | Caching, background refetch, mutation handling. Pairs cleanly with Hono's RPC client (typed `fetch`). |
-| **Server-state mutations** | TanStack Query `useMutation` + Hono RPC | Mutations call the typed Hono client; query invalidation happens in the `onSuccess` handler. |
-| **Cross-component state** | React Context for shared concerns (auth, theme); local `useState` otherwise | Zustand and Redux were rejected as overkill. If a project genuinely outgrows Context, that's a signal to reach for a store deliberately, not by default. |
+| Concern                    | Choice                                                                      | Rationale                                                                                                                                                                                                                                                 |
+| -------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Routing**                | React Router v7                                                             | Mature, well-known, minimal API. TanStack Router is more powerful but adds a learning surface for marginal benefit.                                                                                                                                       |
+| **Forms**                  | `react-hook-form` + `zod` resolver, via shadcn's `Form` components          | The shadcn `Form` wraps react-hook-form with accessible labels/messages. The validation schema is a `z.object({...})` — same shape as backend validation in Hono. Forms are typed end-to-end. Raw `useState` is permitted for trivial single-input forms. |
+| **Data fetching**          | `@tanstack/react-query`                                                     | Caching, background refetch, mutation handling. Pairs cleanly with Hono's RPC client (typed `fetch`).                                                                                                                                                     |
+| **Server-state mutations** | TanStack Query `useMutation` + Hono RPC                                     | Mutations call the typed Hono client; query invalidation happens in the `onSuccess` handler.                                                                                                                                                              |
+| **Cross-component state**  | React Context for shared concerns (auth, theme); local `useState` otherwise | Zustand and Redux were rejected as overkill. If a project genuinely outgrows Context, that's a signal to reach for a store deliberately, not by default.                                                                                                  |
 
 ### HTTP transport alternatives considered
 
@@ -243,12 +243,12 @@ A specific project that needs offline support has to add it manually. Acceptable
 
 ### Why
 
-Without an error boundary, a single uncaught error during render produces a white screen. For a non-engineer's app, the white screen *is* the failure mode — no recovery, no diagnosis, no support path. The error boundary catches the error, displays a user-friendly message, and (in development) shows the stack trace.
+Without an error boundary, a single uncaught error during render produces a white screen. For a non-engineer's app, the white screen _is_ the failure mode — no recovery, no diagnosis, no support path. The error boundary catches the error, displays a user-friendly message, and (in development) shows the stack trace.
 
 ```tsx
 // Simplified shape; real implementation in src/web/components/ErrorBoundary.tsx
 <ErrorBoundary fallback={<ErrorPage />}>
-  <App />
+	<App />
 </ErrorBoundary>
 ```
 

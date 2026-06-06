@@ -1,0 +1,67 @@
+# syntax=docker/dockerfile:1
+#
+# API image — the Hono server (src/server/index.ts) plus the programmatic
+# migrator (src/db/migrate.ts). Multi-stage so the runtime image carries only
+# production deps and the bundled output: NO tsup, NO drizzle-kit, no source TS.
+#
+# Stages:
+#   deps    — production node_modules only (`npm ci --omit=dev`)
+#   build   — full deps + `npm run build:server` -> dist-server/
+#   runtime — node:24-slim + prod node_modules + dist-server/ + src/db/migrations/
+#
+# At start the entrypoint runs the migrator (replays the committed .sql files via
+# runMigrations) and, only on success, boots the server (see
+# scripts/docker-entrypoint.sh). The migrator reads DATABASE_URL; the server reads
+# the full env block (see DEPLOY.md). The server listens on a fixed port 3000.
+
+# --- deps: production-only dependencies -------------------------------------
+FROM node:24 AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+# Omit devDependencies so drizzle-kit / tsup / vitest never reach the runtime image.
+# --ignore-scripts skips the `prepare` lifecycle (it runs husky, a devDependency
+# absent here and pointless in an image); no production dependency ships a
+# native/install script, so nothing else is lost.
+RUN npm ci --omit=dev --ignore-scripts
+
+# --- build: compile the server bundle ---------------------------------------
+FROM node:24 AS build
+WORKDIR /app
+# HUSKY=0 makes the `prepare` script's husky call a no-op (git hooks are
+# meaningless in a build) while still running esbuild's postinstall, which
+# tsup/vite need.
+ENV HUSKY=0
+COPY package.json package-lock.json ./
+RUN npm ci
+# tsup resolves the `@/*` path alias from tsconfig.json, so it must be present.
+COPY tsconfig.json ./
+COPY src ./src
+# Emits dist-server/{index,migrate}.js (+ shared chunk-*.js).
+RUN npm run build:server
+
+# --- runtime: slim image, no build toolchain --------------------------------
+FROM node:24-slim AS runtime
+ENV NODE_ENV=production
+WORKDIR /app
+
+# Production deps and the compiled server bundle.
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/dist-server ./dist-server
+
+# The programmatic migrator reads the checked-in SQL migrations at runtime from
+# `src/db/migrations` (relative to this WORKDIR). Copy ONLY that directory — the
+# .sql files plus meta/_journal.json — so the runtime has no other source and no
+# drizzle-kit dependency.
+COPY src/db/migrations ./src/db/migrations
+
+COPY scripts/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
+# Drop privileges to the image's built-in non-root user.
+USER node
+
+# The Hono server listens on 3000 (src/server/index.ts).
+EXPOSE 3000
+
+# Migrate, then serve (exec'd as PID 1 for correct SIGTERM handling).
+ENTRYPOINT ["./docker-entrypoint.sh"]

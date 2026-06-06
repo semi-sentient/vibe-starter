@@ -1,0 +1,32 @@
+name: Release Please
+
+# Watches conventional commits on `main` (produced by the `commit` skill) and
+# maintains a standing release PR that bumps the version in package.json + the
+# manifest and regenerates CHANGELOG.md. Merging that PR cuts the `vX.Y.Z` tag
+# and GitHub release. Version state lives in .release-please-manifest.json
+# (seeded at 1.0.0); the changelog format + package name come from
+# release-please-config.json.
+on:
+    push:
+        branches: [main]
+
+# release-please needs to push the release branch/commit and open + update the
+# release PR. Note: the repo setting "Allow GitHub Actions to create and approve
+# pull requests" (Settings → Actions → General → Workflow permissions) must also
+# be enabled, otherwise opening the PR fails even with these token scopes.
+permissions:
+    contents: write
+    pull-requests: write
+
+jobs:
+    release-please:
+        name: Release Please
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Run release-please
+              uses: googleapis/release-please-action@v5
+              with:
+                  config-file: release-please-config.json
+                  manifest-file: .release-please-manifest.json
+                  token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,127 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+jobs:
+    build-and-test:
+        name: Build & test
+        runs-on: ubuntu-latest
+
+        services:
+            postgres:
+                image: postgres:17
+                env:
+                    POSTGRES_DB: postgres
+                    POSTGRES_PASSWORD: postgres
+                    POSTGRES_USER: postgres
+                ports:
+                    - 5432:5432
+                # Wait until Postgres accepts connections before steps run, so the
+                # Vitest globalSetup can connect to the `postgres` maintenance db and
+                # CREATE DATABASE vibe_starter_test.
+                options: >-
+                    --health-cmd "pg_isready -U postgres"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 5
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+              with:
+                  # Full history so gitleaks can scan every commit (secret-scan backstop
+                  # for the locally-skippable husky pre-commit hook).
+                  fetch-depth: 0
+
+            - name: Set up Node
+              uses: actions/setup-node@v6
+              with:
+                  cache: npm
+                  node-version-file: .nvmrc
+
+            # --ignore-scripts skips the `prepare: husky` lifecycle script (husky is
+            # dev-only and would no-op in CI anyway); this project has no other
+            # build/postinstall script, so nothing needed is skipped.
+            - name: Install dependencies
+              run: npm ci --ignore-scripts
+
+            - name: Typecheck
+              run: npm run typecheck
+
+            - name: Lint
+              run: npm run lint
+
+            # The Vitest harness force-loads `.env.test` (which already supplies this
+            # full set), so this env block is belt-and-suspenders for the boot-time
+            # env.parse; the DATABASE_URL host/port/credentials MUST match the Postgres
+            # service above so globalSetup can create + migrate vibe_starter_test.
+            - name: Test
+              run: npm run test
+              env:
+                  APP_ORIGIN: http://localhost:5173
+                  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vibe_starter_test
+                  NODE_ENV: test
+                  SESSION_SECRET: test_session_secret_0123456789_abcdefghijklmnop
+                  STRIPE_SECRET_KEY: sk_test_dummy
+                  STRIPE_WEBHOOK_SECRET: whsec_dummy
+
+            - name: Build
+              run: npm run build
+
+    # Cross-platform gate (P16): proves the build runs on every supported OS, not
+    # just Linux. Deliberately a SEPARATE job from build-and-test — GitHub Actions
+    # `services:` containers are declared at job level and Linux-only, so attaching
+    # the Postgres service to a 3-OS matrix would fail the macOS/Windows legs. This
+    # job therefore carries NO service container and skips the DB-backed test step;
+    # build-and-test above remains the single DB-backed leg (ubuntu, full suite).
+    cross-platform:
+        name: Cross-platform build (${{ matrix.os }})
+        runs-on: ${{ matrix.os }}
+
+        strategy:
+            # Don't let one OS failing cancel the others — we want the full matrix
+            # result on every run to see which platform broke.
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest, windows-latest]
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Set up Node
+              uses: actions/setup-node@v6
+              with:
+                  cache: npm
+                  node-version-file: .nvmrc
+
+            - name: Install dependencies
+              run: npm ci --ignore-scripts
+
+            - name: Typecheck
+              run: npm run typecheck
+
+            - name: Lint
+              run: npm run lint
+
+            - name: Build
+              run: npm run build
+
+    gitleaks:
+        name: Secret scan
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+              with:
+                  # gitleaks scans the full commit history, not just the tip.
+                  fetch-depth: 0
+
+            - name: Run gitleaks
+              uses: gitleaks/gitleaks-action@v3
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

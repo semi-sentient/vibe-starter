@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1
+#
+# Web image — the Vite/React SPA built to static files and served by nginx, which
+# also reverse-proxies /api/* to the api service (single-origin; see
+# nginx.conf.template + DEPLOY.md).
+#
+# Stages:
+#   build   — full deps + `npm run build:web` -> dist/ (index.html + assets/)
+#   runtime — nginx serving dist/, with the /api proxy + SPA fallback
+#
+# The SPA is fully static. The RPC client's base URL (VITE_API_URL) defaults to
+# "/" (same origin), so the default build needs NO build args — it calls
+# same-origin /api/*, which nginx proxies to the api service. Only override
+# VITE_API_URL (a build arg) for the two-origin escape hatch in DEPLOY.md.
+
+# --- build: compile the SPA -------------------------------------------------
+FROM node:24 AS build
+WORKDIR /app
+# HUSKY=0 makes the `prepare` script's husky call a no-op (git hooks are
+# meaningless in a build) while still running esbuild's postinstall, which Vite needs.
+ENV HUSKY=0
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json vite.config.ts index.html ./
+COPY src ./src
+# Optional override for the two-origin escape hatch (default "/" = same origin).
+ARG VITE_API_URL
+RUN npm run build:web
+
+# --- runtime: nginx ---------------------------------------------------------
+FROM nginx:1.29-alpine AS runtime
+
+# Host:port of the api service. Overridable at runtime (see DEPLOY.md); default
+# matches a shared-network/Compose service named `api`.
+ENV API_UPSTREAM=api:3000
+# Restrict envsubst to ONLY our var so nginx's own $uri/$host/$remote_addr in the
+# template are left intact by the image's template-substitution entrypoint.
+ENV NGINX_ENVSUBST_FILTER=API_UPSTREAM
+
+# The nginx image's entrypoint renders /etc/nginx/templates/*.template (envsubst)
+# into /etc/nginx/conf.d/ at start, so API_UPSTREAM is resolved per-deploy.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80

@@ -1,0 +1,51 @@
+# nginx config TEMPLATE for the web image (Dockerfile.web).
+#
+# The official nginx image's entrypoint runs envsubst over files in
+# /etc/nginx/templates/*.template and writes the result to /etc/nginx/conf.d/.
+# Only ${API_UPSTREAM} is substituted (NGINX_ENVSUBST_FILTER pins the var list in
+# the Dockerfile) so nginx's own runtime vars — $uri, $host, $remote_addr — pass
+# through untouched.
+#
+#   API_UPSTREAM  host:port of the api service. Default "api:3000" matches a
+#                 Compose/shared-network service named `api`. On Railway set it to
+#                 the api service's PRIVATE address, e.g. "api.railway.internal:3000".
+#                 See DEPLOY.md.
+#
+# Single-origin topology: this server BOTH serves the SPA and reverse-proxies
+# /api/* to the api service. Because the browser only ever talks to this one
+# origin, the session `sid` cookie stays first-party and no CORS / cross-site
+# cookie handling is needed.
+
+server {
+    listen       80;
+    server_name  _;
+
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    # Don't leak the nginx version in error pages / the Server header.
+    server_tokens off;
+
+    # Reverse-proxy the API to the api service, PRESERVING the /api prefix —
+    # Hono mounts every route under .basePath('/api'), so /api/health here maps
+    # 1:1 to /api/health on the server. No trailing slash on proxy_pass, so nginx
+    # forwards the original URI unchanged.
+    location /api/ {
+        proxy_pass http://${API_UPSTREAM};
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        # Overwrite (do NOT append) X-Forwarded-For: the server's clientIp() trusts
+        # the LEFT-MOST hop as the real client under a TRUSTED-PROXY assumption, so
+        # we must replace any client-supplied value rather than chain to it.
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # SPA fallback: serve static assets when they exist, otherwise hand back
+    # index.html so client-side routes (e.g. /login) resolve in the browser.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

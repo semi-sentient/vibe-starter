@@ -8,25 +8,25 @@ This document covers the backend stack. For project-level decisions, see [`PROJE
 
 ## Decision summary
 
-| Decision | Choice | Primary alternative considered |
-|---|---|---|
-| API framework | **Hono** | Express, Fastify, Koa |
-| Database | **PostgreSQL** | Redis-only, MySQL, SQLite, DynamoDB |
-| ORM / query builder | **Drizzle** | Prisma, raw `pg`, Kysely |
-| Local DB orchestration | **Docker Compose** | Railway local agent, dev container |
-| Auth | **Magic-link via Resend** | Username/password, OAuth-only, Auth0/Clerk |
-| Session storage | **Postgres `sessions` table** | Redis, JWT, signed cookies |
-| CSRF protection | **Origin header check + `SameSite=Lax` cookies** | Double-submit cookie, CSRF token middleware |
-| Rate limiting | **Postgres-backed fixed window on auth endpoints** | Redis token bucket, in-memory counter |
-| Tenancy | **Single-tenant; ownership rule (`userId` filter) on user-owned rows** | Multi-tenant `tenantId` FK, schema-per-tenant |
-| Roles / RBAC | **Two roles (`admin`/`user`) + `requireRole()` middleware** | Casbin, OPA, ad-hoc checks |
-| Payments | **Stripe (hosted Checkout + webhooks)** | PayPal, Lemon Squeezy / Paddle (MoR), Square |
-| Email | **Resend** | SendGrid, Postmark, AWS SES |
-| Logging | **pino** | winston, bunyan, console |
-| Env validation | **zod** | envalid, manual checks |
-| Error handling | **Hono `onError` middleware** | Per-route try/catch |
-| Background work | **In-process periodic worker (`runPeriodically`)** | pg-boss, DIY `SKIP LOCKED` queue, no background work |
-| Backend testing | **Vitest + integration tests via in-memory `app.request()`** | Jest, node:test, unit-only testing, throwaway containers |
+| Decision               | Choice                                                                 | Primary alternative considered                           |
+| ---------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------- |
+| API framework          | **Hono**                                                               | Express, Fastify, Koa                                    |
+| Database               | **PostgreSQL**                                                         | Redis-only, MySQL, SQLite, DynamoDB                      |
+| ORM / query builder    | **Drizzle**                                                            | Prisma, raw `pg`, Kysely                                 |
+| Local DB orchestration | **Docker Compose**                                                     | Railway local agent, dev container                       |
+| Auth                   | **Magic-link via Resend**                                              | Username/password, OAuth-only, Auth0/Clerk               |
+| Session storage        | **Postgres `sessions` table**                                          | Redis, JWT, signed cookies                               |
+| CSRF protection        | **Origin header check + `SameSite=Lax` cookies**                       | Double-submit cookie, CSRF token middleware              |
+| Rate limiting          | **Postgres-backed fixed window on auth endpoints**                     | Redis token bucket, in-memory counter                    |
+| Tenancy                | **Single-tenant; ownership rule (`userId` filter) on user-owned rows** | Multi-tenant `tenantId` FK, schema-per-tenant            |
+| Roles / RBAC           | **Two roles (`admin`/`user`) + `requireRole()` middleware**            | Casbin, OPA, ad-hoc checks                               |
+| Payments               | **Stripe (hosted Checkout + webhooks)**                                | PayPal, Lemon Squeezy / Paddle (MoR), Square             |
+| Email                  | **Resend**                                                             | SendGrid, Postmark, AWS SES                              |
+| Logging                | **pino**                                                               | winston, bunyan, console                                 |
+| Env validation         | **zod**                                                                | envalid, manual checks                                   |
+| Error handling         | **Hono `onError` middleware**                                          | Per-route try/catch                                      |
+| Background work        | **In-process periodic worker (`runPeriodically`)**                     | pg-boss, DIY `SKIP LOCKED` queue, no background work     |
+| Backend testing        | **Vitest + integration tests via in-memory `app.request()`**           | Jest, node:test, unit-only testing, throwaway containers |
 
 ---
 
@@ -60,19 +60,19 @@ const app = express();
 app.use(express.json());
 
 app.post('/api/bookings', (req, res) => {
-  // req.body is `any`. We don't know its shape.
-  const { note, serviceId } = req.body;
+	// req.body is `any`. We don't know its shape.
+	const { note, serviceId } = req.body;
 
-  // Manual validation:
-  if (typeof serviceId !== 'number') {
-    return res.status(400).json({ error: 'serviceId required' });
-  }
-  if (typeof note !== 'string' || note.length === 0) {
-    return res.status(400).json({ error: 'note required' });
-  }
+	// Manual validation:
+	if (typeof serviceId !== 'number') {
+		return res.status(400).json({ error: 'serviceId required' });
+	}
+	if (typeof note !== 'string' || note.length === 0) {
+		return res.status(400).json({ error: 'note required' });
+	}
 
-  // ...persist, then respond
-  res.json({ id: 1, note, serviceId });
+	// ...persist, then respond
+	res.json({ id: 1, note, serviceId });
 });
 ```
 
@@ -84,19 +84,18 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
 const bookingSchema = z.object({
-  note: z.string().min(1),
-  serviceId: z.number().int().positive(),
+	note: z.string().min(1),
+	serviceId: z.number().int().positive(),
 });
 
-const app = new Hono()
-  .post('/api/bookings', zValidator('json', bookingSchema), (c) => {
-    const { note, serviceId } = c.req.valid('json');
-    // ^ fully typed: { note: string; serviceId: number }
-    // Validation failures are auto-returned as 400 with structured error.
-    return c.json({ id: 1, note, serviceId });
-  });
+const app = new Hono().post('/api/bookings', zValidator('json', bookingSchema), (c) => {
+	const { note, serviceId } = c.req.valid('json');
+	// ^ fully typed: { note: string; serviceId: number }
+	// Validation failures are auto-returned as 400 with structured error.
+	return c.json({ id: 1, note, serviceId });
+});
 
-export type AppType = typeof app;  // <-- exported for the RPC client
+export type AppType = typeof app; // <-- exported for the RPC client
 ```
 
 **On the frontend:**
@@ -109,7 +108,7 @@ const api = hc<AppType>('/');
 
 // Typed end-to-end. TS errors if `serviceId` is missing or wrong shape.
 const res = await api.api.bookings.$post({
-  json: { note: 'First-time visitor', serviceId: 7 },
+	json: { note: 'First-time visitor', serviceId: 7 },
 });
 const booking = await res.json(); // typed as { id: number; note: string; serviceId: number }
 ```
@@ -159,18 +158,22 @@ This section is long because the cost of getting it wrong is paid by every proje
 
 **1. Schema-as-code is the single highest-leverage agent-context lever.**
 
-Drizzle's schema is a TypeScript file. The agent reads it once and knows the shape of every table. Field names, types, constraints, foreign keys, defaults — all visible. (The `bookings`/`services` tables below are *illustrative* — the kind of thing a project adds; the starter itself ships only the generic tables listed under "Schema sketch" later.)
+Drizzle's schema is a TypeScript file. The agent reads it once and knows the shape of every table. Field names, types, constraints, foreign keys, defaults — all visible. (The `bookings`/`services` tables below are _illustrative_ — the kind of thing a project adds; the starter itself ships only the generic tables listed under "Schema sketch" later.)
 
 ```typescript
 // src/db/schema.ts — schema is the single source of truth (illustrative tables)
 export const bookings = pgTable('bookings', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id').notNull().references(() => users.id),
-  serviceId: integer('service_id').notNull().references(() => services.id),
-  note: text('note').notNull(),
-  status: bookingStatusEnum('status').notNull().default('pending'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  version: integer('version').notNull().default(1), // for optimistic locking
+	id: serial('id').primaryKey(),
+	userId: integer('user_id')
+		.notNull()
+		.references(() => users.id),
+	serviceId: integer('service_id')
+		.notNull()
+		.references(() => services.id),
+	note: text('note').notNull(),
+	status: bookingStatusEnum('status').notNull().default('pending'),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	version: integer('version').notNull().default(1), // for optimistic locking
 });
 ```
 
@@ -182,14 +185,11 @@ There is no equivalent in a Redis-only architecture. Schema in Redis is implicit
 
 ```typescript
 const myBookings = await db
-  .select()
-  .from(bookings)
-  .where(and(
-    eq(bookings.userId, currentUser.id),
-    eq(bookings.status, 'paid')
-  ))
-  .orderBy(desc(bookings.createdAt))
-  .limit(20);
+	.select()
+	.from(bookings)
+	.where(and(eq(bookings.userId, currentUser.id), eq(bookings.status, 'paid')))
+	.orderBy(desc(bookings.createdAt))
+	.limit(20);
 
 // myBookings: Booking[] — fully typed. Renaming `status` to `state`
 // in the schema lights up every query referencing it.
@@ -201,24 +201,20 @@ The Redis equivalent loses every typing step:
 // First, you need to have manually maintained a secondary index.
 // Every write to bookings must update this set; if you forget, queries silently
 // return stale results.
-const ids = await redis.zRange(
-  `bookings:by_user:${userId}:paid`,
-  0, 19,
-  { REV: true }
-);
+const ids = await redis.zRange(`bookings:by_user:${userId}:paid`, 0, 19, { REV: true });
 
 const result: any[] = [];
 for (const id of ids) {
-  const data = await redis.get(`booking:${id}`);
-  if (data) result.push(JSON.parse(data));
-  // Plus: filter out rows whose status changed but the secondary
-  // index wasn't updated yet. Hope you remembered.
+	const data = await redis.get(`booking:${id}`);
+	if (data) result.push(JSON.parse(data));
+	// Plus: filter out rows whose status changed but the secondary
+	// index wasn't updated yet. Hope you remembered.
 }
 // result is `any[]` — no type safety, no autocomplete, no compile-time
 // catch when the schema changes.
 ```
 
-The Redis path requires the builder to *invent* what Postgres provides for free: indexes, joins, type safety, atomic mutations.
+The Redis path requires the builder to _invent_ what Postgres provides for free: indexes, joins, type safety, atomic mutations.
 
 **3. Real ACID transactions across rows.**
 
@@ -275,7 +271,7 @@ There is no Redis equivalent that's both safe and ergonomic. RedisInsight exists
 
 **"A Redis-with-AOF app works fine. Why not start there?"**
 
-A Redis-only app can work fine when the people building it bring engineering discipline that vibe coders will not have. AOF gives durability (`appendfsync everysec` survives crashes with ≤1s data loss). Lua scripts give atomicity. Sorted sets give time-ordered queries. Building all of that *correctly* is a credit to a skilled team, not evidence the architecture generalizes.
+A Redis-only app can work fine when the people building it bring engineering discipline that vibe coders will not have. AOF gives durability (`appendfsync everysec` survives crashes with ≤1s data loss). Lua scripts give atomicity. Sorted sets give time-ordered queries. Building all of that _correctly_ is a credit to a skilled team, not evidence the architecture generalizes.
 
 The starter is consumed by people who will not write Lua scripts, will not maintain secondary indexes consistently, and will not reason about race conditions between `MULTI` blocks. Asking them to is asking for the failure modes Postgres prevents structurally.
 
@@ -283,11 +279,11 @@ The starter is consumed by people who will not write Lua scripts, will not maint
 
 False at our scale.
 
-| Provider | Small Postgres | Small Redis |
-|---|---|---|
-| Railway | ~$5/mo for 512MB instance | ~$5/mo for 256MB instance |
-| Neon | Free tier covers prototype workloads | n/a |
-| Upstash | n/a | Free tier covers prototype workloads |
+| Provider | Small Postgres                       | Small Redis                          |
+| -------- | ------------------------------------ | ------------------------------------ |
+| Railway  | ~$5/mo for 512MB instance            | ~$5/mo for 256MB instance            |
+| Neon     | Free tier covers prototype workloads | n/a                                  |
+| Upstash  | n/a                                  | Free tier covers prototype workloads |
 
 Both have free tiers that cover prototype workloads. At scale (millions of ops/sec), DynamoDB or managed Redis Enterprise become cost-relevant. We are five orders of magnitude away. Picking a database for a scale ceiling we'll never reach is premature optimization, and the cost is daily friction.
 
@@ -307,7 +303,7 @@ For our scale, no. DynamoDB requires:
 
 - AWS account setup, IAM roles, billing.
 - A local emulator (`dynamodb-local`) for offline development — breaks the "Docker Compose up and you're running" story.
-- Designing partition keys and sort keys around access patterns *before* writing code (because changing them later requires data rewriting).
+- Designing partition keys and sort keys around access patterns _before_ writing code (because changing them later requires data rewriting).
 - Global Secondary Indexes for any non-primary-key query (each one is a separate billable entity).
 - Hand-rolled analytics via S3 export + Athena.
 
@@ -315,7 +311,7 @@ For the rare project that truly needs DynamoDB-scale throughput, that's an engin
 
 **"NoSQL is more flexible for evolving schemas."**
 
-This is the most-repeated and least-true argument. Document stores let you change shape *without telling anyone*, but the data still has shape — it just lives in JavaScript objects scattered across the codebase. The flexibility is illusory; you've moved schema enforcement from the database to "whatever happens to read this row next."
+This is the most-repeated and least-true argument. Document stores let you change shape _without telling anyone_, but the data still has shape — it just lives in JavaScript objects scattered across the codebase. The flexibility is illusory; you've moved schema enforcement from the database to "whatever happens to read this row next."
 
 Postgres + Drizzle gives you `ALTER TABLE` (in a checked-in migration) for additive changes, JSONB columns for genuinely document-shaped fields, and migration tools for renaming/restructuring. The flexibility you actually want is available; the chaos you don't want is prevented.
 
@@ -325,11 +321,11 @@ Postgres + Drizzle gives you `ALTER TABLE` (in a checked-in migration) for addit
 
 The starter does not ship Redis by default, but documents it as an escape hatch for three legitimate use cases:
 
-| Use case | Why Redis fits |
-|---|---|
+| Use case                     | Why Redis fits                                                                                                                                                                                                    |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Session storage at scale** | If sessions become a bottleneck (rare at prototype scale), Redis's TTL-keyed reads are faster than Postgres lookups. The starter ships sessions in Postgres; promote to Redis only when measured to be a problem. |
-| **Rate limiting** | Token-bucket and sliding-window rate limits naturally fit Redis. Implementing in Postgres is awkward. |
-| **Job queues** | BullMQ, Bee Queue, or similar. Postgres can do simple queues (`SKIP LOCKED`), but for high-throughput async work, Redis-backed queues are the standard. |
+| **Rate limiting**            | Token-bucket and sliding-window rate limits naturally fit Redis. Implementing in Postgres is awkward.                                                                                                             |
+| **Job queues**               | BullMQ, Bee Queue, or similar. Postgres can do simple queues (`SKIP LOCKED`), but for high-throughput async work, Redis-backed queues are the standard.                                                           |
 
 If a project legitimately needs one of these, the builder adds Redis as a secondary service. They do not move primary data into it.
 
@@ -339,15 +335,15 @@ If a project legitimately needs one of these, the builder adds Redis as a second
 
 Within the "Postgres + ORM" decision, Drizzle was chosen over Prisma. Both are credible.
 
-| | Drizzle | Prisma |
-|---|---|---|
-| Schema location | TypeScript file | `.prisma` DSL |
-| Code generation | None (types inferred) | Heavy generated client at build time |
-| Bundle size | Small | Large (depends on platform) |
-| Migration tooling | `drizzle-kit generate` + `migrate` | `prisma migrate dev` |
-| Agent context | Schema is just TS — agent reads `schema.ts` | Schema is `.prisma` — agent must learn the DSL |
-| Maturity | Younger (released 2022) | Older, more battle-tested |
-| Community | Growing fast | Larger, more SO answers |
+|                   | Drizzle                                     | Prisma                                         |
+| ----------------- | ------------------------------------------- | ---------------------------------------------- |
+| Schema location   | TypeScript file                             | `.prisma` DSL                                  |
+| Code generation   | None (types inferred)                       | Heavy generated client at build time           |
+| Bundle size       | Small                                       | Large (depends on platform)                    |
+| Migration tooling | `drizzle-kit generate` + `migrate`          | `prisma migrate dev`                           |
+| Agent context     | Schema is just TS — agent reads `schema.ts` | Schema is `.prisma` — agent must learn the DSL |
+| Maturity          | Younger (released 2022)                     | Older, more battle-tested                      |
+| Community         | Growing fast                                | Larger, more SO answers                        |
 
 The deciding factor: **schema is just TypeScript**. The agent reads `schema.ts` like any other file in the project, types flow naturally, no codegen step. For an agent-first starter, this is significant. Prisma's `.prisma` DSL is one indirection layer the agent has to navigate.
 
@@ -361,7 +357,7 @@ Both produce safe code. Both have good migration stories. Either would work; Dri
 
 The starter ships a working **magic-link authentication** flow with **session-backed authorization**, **two roles** (`admin` / `user`), and an **ownership rule** for user-owned data, all as primitives. Builders use the scaffold; they do not invent it.
 
-This is a **single-tenant** app: one business, many user accounts (customers self-register and pay for what they want). There is no `tenantId`, no per-tenant isolation, and no cross-tenant model. The access-control surface that matters is simpler and sharper: *can this user touch this row, and can this user reach this route?*
+This is a **single-tenant** app: one business, many user accounts (customers self-register and pay for what they want). There is no `tenantId`, no per-tenant isolation, and no cross-tenant model. The access-control surface that matters is simpler and sharper: _can this user touch this row, and can this user reach this route?_
 
 ### Architecture
 
@@ -385,7 +381,7 @@ sequenceDiagram
   API->>DB: Lookup auth_codes(email)
   API->>API: Validate code, expiry, attempts
   API->>DB: Upsert users(email) — auto-create on first login
-  API->>API: Set role = admin if email in ADMIN_EMAILS, else user
+  API->>API: Resolve role (durable + upgrade-only): keep stored role, raise to admin on signal
   API->>DB: Insert sessions(userId, id, expiresAt)
   API-->>Web: Set-Cookie: sid=<session>
   Web-->>User: Logged in
@@ -407,19 +403,19 @@ Reasoning: passwords are a security liability and a UX cost. Magic links elimina
 **2. Open self-signup.** Anyone can request a magic-link code. On the first successful verify, a `user` account is auto-created — customers self-register, no invite required. The app is **not** invite-only; open signup is the default.
 
 ```typescript
-// On verify success:
-const isAdmin = env.ADMIN_EMAILS.includes(email.toLowerCase());
+// On verify success. Roles are durable + UPGRADE-ONLY: a login signal
+// (ADMIN_EMAILS membership, or a consumed invite) can RAISE the stored role,
+// but absence of a signal preserves it — a returning user is never demoted.
+const [existing] = await db.select({ role: users.role }).from(users).where(eq(users.email, email));
+const role = await resolveLoginRole(email, existing?.role ?? null);
 const [user] = await db
-  .insert(users)
-  .values({ email, role: isAdmin ? 'admin' : 'user' })
-  .onConflictDoUpdate({
-    target: users.email,
-    set: { role: isAdmin ? 'admin' : 'user' }, // re-assert role on each login
-  })
-  .returning();
+	.insert(users)
+	.values({ email, role })
+	.onConflictDoUpdate({ target: users.email, set: { role } })
+	.returning();
 ```
 
-**3. Session storage in Postgres.** Sessions are rows in a `sessions` table with `(id, user_id, expires_at)` columns and a 24-hour TTL with sliding refresh on each request.
+**3. Session storage in Postgres.** Sessions are rows in a `sessions` table with `(id, user_id, expires_at, created_at)` columns and a 24-hour TTL with sliding refresh on each request.
 
 Reasoning: rejecting JWTs because they cannot be revoked without an external blacklist (which defeats the point); rejecting Redis because we don't ship Redis by default. Postgres sessions are simple, performant at our scale, and survive a reboot.
 
@@ -427,12 +423,19 @@ Reasoning: rejecting JWTs because they cannot be revoked without an external bla
 
 ```typescript
 export const roleEnum = pgEnum('role', [
-  'admin', // can manage all users' data and reach admin-only routes
-  'user',  // can only access their own rows
+	'admin', // can manage all users' data and reach admin-only routes
+	'user', // can only access their own rows
 ]);
 ```
 
-The `admin` role is granted via the **`ADMIN_EMAILS`** env allowlist (comma-separated), re-asserted at every login. Everyone else is a `user`. An optional `invites` table MAY be retained as an escape hatch for granting elevated roles out-of-band, but it is not on the default path.
+Roles are **durable and upgrade-only**. The stored `users.role` is the source of truth; a login can only ever _raise_ it, never lower it. On each login the role resolves to the higher-privilege of the stored role and the login _signal_ — and absence of a signal preserves the stored role (so a returning user is never silently demoted).
+
+The `admin` role is reached via two signals: the **`ADMIN_EMAILS`** env allowlist (comma-separated, case-insensitive), and **invites** (the `invites` table). Both only upgrade:
+
+- **`ADMIN_EMAILS` is a bootstrap + break-glass mechanism, not the ongoing management surface.** Membership guarantees a login resolves to _at least_ `admin`; it never demotes. Set it once to mint the first admin, then invite the rest from inside the app. Removing an email from the list does **not** revoke that user's `admin` — revocation is a separate, explicit action (see below).
+- **Invites grant a durable role.** An admin invites an email (`POST /api/invites`); the grant applies on that email's next login, when `verifyCode` consumes the one-shot invite. Because the role is now durable, the invited admin stays admin on every subsequent login — no need to also add them to `ADMIN_EMAILS`. Open self-signup is unaffected: an email with no signal is a `user`.
+
+**Revocation (lowering a role) is intentionally out of scope for the base** and is an extension point: add an explicit admin action (e.g. `DELETE /api/users/:id/role` or a "demote" endpoint, gated by `requireRole('admin')`) that writes the lower role directly. It is deliberately NOT a login side effect, so the set of admins can't churn silently as `ADMIN_EMAILS` is edited.
 
 The `requireRole()` middleware gates admin routes:
 
@@ -451,13 +454,13 @@ Reasoning: two roles cover almost every side-project need (a business owner who 
 ```typescript
 // The idiomatic shape, documented in AGENTS.md and the auth skill.
 const rows = await db
-  .select()
-  .from(orders)
-  .where(
-    user.role === 'admin'
-      ? undefined // admins see everything
-      : eq(orders.userId, c.var.user.id)
-  );
+	.select()
+	.from(orders)
+	.where(
+		user.role === 'admin'
+			? undefined // admins see everything
+			: eq(orders.userId, c.var.user.id)
+	);
 ```
 
 **The single most likely high-severity bug a vibe coder ships is broken access control / IDOR** — a user reading or mutating another user's data because a query wasn't scoped to the current user (e.g. a customer viewing another customer's order by guessing an `id`), or a `user` reaching an `admin`-only route. This is the bug the starter most aggressively prevents, via two mechanisms: `requireRole('admin')` on admin routes, and the ownership rule on every user-owned query. The access-control anchor test (see Testing) exists specifically to keep this contract honest.
@@ -478,7 +481,7 @@ The starter is deliberately single-tenant, because the representative use case (
 
 - Add a `tenants` table and a `tenantId` foreign key to every tenant-owned table.
 - Resolve the current `tenantId` from the session at request time.
-- Scope *every* query by `tenantId` (a `withTenantScope(tenantId)` helper makes this idiomatic), in addition to — not instead of — the ownership rule.
+- Scope _every_ query by `tenantId` (a `withTenantScope(tenantId)` helper makes this idiomatic), in addition to — not instead of — the ownership rule.
 - The highest-severity bug then becomes cross-tenant leakage, and the anchor test grows a "tenant A cannot read tenant B's data" case.
 
 This is documented as a graduation path, like Redis is for the data store. It is **not** shipped by default; do not add it speculatively.
@@ -488,7 +491,7 @@ This is documented as a graduation path, like Redis is for the data store. It is
 A skill is shipped upfront in the starter at `.agents/skills/auth/SKILL.md` (and equivalent paths for other agent harnesses) documenting:
 
 - How to add a new protected route (use `requireRole('admin')`).
-- The role model (`admin` / `user`) and how `ADMIN_EMAILS` grants `admin`.
+- The role model (`admin` / `user`) — durable + upgrade-only — and how `ADMIN_EMAILS` and invites raise a role to `admin`.
 - The ownership rule — user-owned queries always filter by `userId = c.var.user.id` unless the caller is `admin` — with copy-paste examples for read and mutate paths.
 - How the auth scaffold is structured (so the agent doesn't reinvent it).
 - The optional multi-tenant escape hatch, in case the project grows into a true multi-tenant SaaS.
@@ -516,7 +519,7 @@ This remains the **only** skill authored specifically for this starter and shipp
 
 **Stripe** as the payment provider, integrated by default via **Stripe-hosted Checkout** (a redirect to Stripe's hosted payment page), with **webhooks as the source of truth** for payment status. The representative use case: a customer pays for something — a booking, a class seat, a membership.
 
-This section documents the *design*; it does not include a full implementation. The shape below is what the starter scaffolds and what the `auth`/payments conventions point the agent at.
+This section documents the _design_; it does not include a full implementation. The shape below is what the starter scaffolds and what the `auth`/payments conventions point the agent at.
 
 ### Why Stripe
 
@@ -534,34 +537,36 @@ This section documents the *design*; it does not include a full implementation. 
 // The starter ships ONE placeholder purchase ('Sample item') so the flow runs
 // end-to-end out of the box — replace it with whatever your project actually sells.
 app.post('/api/checkout', requireAuth, async (c) => {
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    customer_email: c.var.user.email,
-    // Two ways to price a line item — pick whichever fits; the starter bakes in neither:
-    //   (1) a pre-created Stripe Price:  line_items: [{ price: 'price_123', quantity: 1 }]
-    //   (2) an inline ad-hoc amount (used here for the demo):
-    line_items: [{
-      quantity: 1,
-      price_data: {
-        currency: 'usd',
-        unit_amount: 1000, // $10.00, in the smallest currency unit
-        product_data: { name: 'Sample item' },
-      },
-    }],
-    success_url: `${env.APP_ORIGIN}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${env.APP_ORIGIN}/checkout/cancel`,
-    metadata: { userId: String(c.var.user.id) },
-  });
-  // Persist a pending, user-owned order keyed by session.id BEFORE redirecting.
-  await db.insert(orders).values({
-    userId: c.var.user.id,
-    description: 'Sample item',
-    stripeCheckoutSessionId: session.id,
-    status: 'pending',
-    amount: 1000,
-    currency: 'usd',
-  });
-  return c.json({ url: session.url });
+	const session = await stripe.checkout.sessions.create({
+		mode: 'payment',
+		customer_email: c.var.user.email,
+		// Two ways to price a line item — pick whichever fits; the starter bakes in neither:
+		//   (1) a pre-created Stripe Price:  line_items: [{ price: 'price_123', quantity: 1 }]
+		//   (2) an inline ad-hoc amount (used here for the demo):
+		line_items: [
+			{
+				quantity: 1,
+				price_data: {
+					currency: 'usd',
+					unit_amount: 1000, // $10.00, in the smallest currency unit
+					product_data: { name: 'Sample item' },
+				},
+			},
+		],
+		success_url: `${env.APP_ORIGIN}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+		cancel_url: `${env.APP_ORIGIN}/checkout/cancel`,
+		metadata: { userId: String(c.var.user.id) },
+	});
+	// Persist a pending, user-owned order keyed by session.id BEFORE redirecting.
+	await db.insert(orders).values({
+		userId: c.var.user.id,
+		description: 'Sample item',
+		stripeCheckoutSessionId: session.id,
+		status: 'pending',
+		amount: 1000,
+		currency: 'usd',
+	});
+	return c.json({ url: session.url });
 });
 ```
 
@@ -575,20 +580,20 @@ A Hono route `POST /api/stripe/webhook` receives Stripe events and is the **only
 
 Two non-negotiables:
 
-**1. Verify the signature against the raw request body.** Stripe signs each event; verification requires the *exact bytes* Stripe sent. **The gotcha:** do not let any JSON body parser run before verification — parsing and re-serializing changes the bytes and the signature check fails. The webhook route reads the raw body explicitly.
+**1. Verify the signature against the raw request body.** Stripe signs each event; verification requires the _exact bytes_ Stripe sent. **The gotcha:** do not let any JSON body parser run before verification — parsing and re-serializing changes the bytes and the signature check fails. The webhook route reads the raw body explicitly.
 
 ```typescript
 app.post('/api/stripe/webhook', async (c) => {
-  const sig = c.req.header('stripe-signature');
-  const rawBody = await c.req.text(); // raw bytes, NOT c.req.json()
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(rawBody, sig!, env.STRIPE_WEBHOOK_SECRET);
-  } catch {
-    return c.json({ error: 'invalid signature' }, 400);
-  }
-  await handleStripeEvent(event); // idempotent — see below
-  return c.json({ received: true });
+	const sig = c.req.header('stripe-signature');
+	const rawBody = await c.req.text(); // raw bytes, NOT c.req.json()
+	let event: Stripe.Event;
+	try {
+		event = stripe.webhooks.constructEvent(rawBody, sig!, env.STRIPE_WEBHOOK_SECRET);
+	} catch {
+		return c.json({ error: 'invalid signature' }, 400);
+	}
+	await handleStripeEvent(event); // idempotent — see below
+	return c.json({ received: true });
 });
 ```
 
@@ -614,22 +619,24 @@ On `checkout.session.completed` / `invoice.paid`, the matching `orders` row is m
 
 ### Schema sketch
 
-A generic, **domain-agnostic** `orders` table (call it `payments` if that reads better) records the *payment facts* — who paid, how much, the Stripe identifiers, and the status — for a user. It deliberately does **not** reference a domain entity, because what you sell is your project's decision, not the starter's:
+A generic, **domain-agnostic** `orders` table (call it `payments` if that reads better) records the _payment facts_ — who paid, how much, the Stripe identifiers, and the status — for a user. It deliberately does **not** reference a domain entity, because what you sell is your project's decision, not the starter's:
 
 ```typescript
 export const orderStatusEnum = pgEnum('order_status', ['pending', 'paid', 'refunded']);
 
 export const orders = pgTable('orders', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id').notNull().references(() => users.id),
-  description: text('description').notNull(), // what was bought, e.g. 'Sample item'
-  stripeCheckoutSessionId: text('stripe_checkout_session_id').notNull().unique(),
-  stripePaymentIntentId: text('stripe_payment_intent_id'),
-  status: orderStatusEnum('status').notNull().default('pending'),
-  amount: integer('amount').notNull(), // smallest currency unit (e.g. cents)
-  currency: text('currency').notNull().default('usd'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  paidAt: timestamp('paid_at', { withTimezone: true }),
+	id: serial('id').primaryKey(),
+	userId: integer('user_id')
+		.notNull()
+		.references(() => users.id),
+	description: text('description').notNull(), // what was bought, e.g. 'Sample item'
+	stripeCheckoutSessionId: text('stripe_checkout_session_id').notNull().unique(),
+	stripePaymentIntentId: text('stripe_payment_intent_id'),
+	status: orderStatusEnum('status').notNull().default('pending'),
+	amount: integer('amount').notNull(), // smallest currency unit (e.g. cents)
+	currency: text('currency').notNull().default('usd'),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	paidAt: timestamp('paid_at', { withTimezone: true }),
 });
 ```
 
@@ -639,10 +646,10 @@ The `orders` rows are user-owned, so they obey the ownership rule: a customer se
 
 ### Env vars
 
-| Variable | Side | Secret? | Purpose |
-|---|---|---|---|
-| `STRIPE_SECRET_KEY` | Server | Yes | Create Checkout Sessions, call the Stripe API |
-| `STRIPE_WEBHOOK_SECRET` | Server | Yes | Verify webhook signatures against the raw body |
+| Variable                      | Side   | Secret?             | Purpose                                                     |
+| ----------------------------- | ------ | ------------------- | ----------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`           | Server | Yes                 | Create Checkout Sessions, call the Stripe API               |
+| `STRIPE_WEBHOOK_SECRET`       | Server | Yes                 | Verify webhook signatures against the raw body              |
 | `VITE_STRIPE_PUBLISHABLE_KEY` | Client | No (safe to expose) | Only needed if Stripe.js / Elements is used on the frontend |
 
 These are added to the zod env schemas alongside the existing vars (see Environment validation).
@@ -717,11 +724,11 @@ pino:
 ```typescript
 // Sketch of the middleware
 app.use('*', async (c, next) => {
-  const requestId = crypto.randomUUID();
-  c.set('logger', logger.child({ requestId, path: c.req.path }));
-  const start = Date.now();
-  await next();
-  c.get('logger').info({ status: c.res.status, durationMs: Date.now() - start }, 'request');
+	const requestId = crypto.randomUUID();
+	c.set('logger', logger.child({ requestId, path: c.req.path }));
+	const start = Date.now();
+	await next();
+	c.get('logger').info({ status: c.res.status, durationMs: Date.now() - start }, 'request');
 });
 ```
 
@@ -756,18 +763,23 @@ zod-validated env catches this at boot:
 import { z } from 'zod';
 
 const schema = z.object({
-  DATABASE_URL: z.string().url(),
-  SESSION_SECRET: z.string().min(32),
-  ADMIN_EMAILS: z
-    .string()
-    .default('')
-    .transform((s) => s.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)),
-  APP_ORIGIN: z.string().url(),
-  RESEND_API_KEY: z.string().optional(),
-  STRIPE_SECRET_KEY: z.string(),
-  STRIPE_WEBHOOK_SECRET: z.string(),
-  ANTHROPIC_API_KEY: z.string().optional(),
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+	DATABASE_URL: z.string().url(),
+	SESSION_SECRET: z.string().min(32),
+	ADMIN_EMAILS: z
+		.string()
+		.default('')
+		.transform((s) =>
+			s
+				.split(',')
+				.map((e) => e.trim().toLowerCase())
+				.filter(Boolean)
+		),
+	APP_ORIGIN: z.string().url(),
+	RESEND_API_KEY: z.string().optional(),
+	STRIPE_SECRET_KEY: z.string(),
+	STRIPE_WEBHOOK_SECRET: z.string(),
+	ANTHROPIC_API_KEY: z.string().optional(),
+	NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
 
 export const env = schema.parse(process.env);
@@ -797,11 +809,11 @@ A rule in AGENTS.md: every new env var updates `.env.example` AND the validation
 
 ```typescript
 app.onError((err, c) => {
-  c.get('logger')?.error({ err }, 'unhandled error');
-  if (env.NODE_ENV === 'production') {
-    return c.json({ error: 'Internal server error' }, 500);
-  }
-  return c.json({ error: err.message, stack: err.stack }, 500);
+	c.get('logger')?.error({ err }, 'unhandled error');
+	if (env.NODE_ENV === 'production') {
+		return c.json({ error: 'Internal server error' }, 500);
+	}
+	return c.json({ error: err.message, stack: err.stack }, 500);
 });
 ```
 
@@ -893,7 +905,7 @@ Per-test transactional rollback was rejected because Drizzle's `db.transaction()
 
 **4. Plain TS factories + `setupUsers()` helper.** `createUser({ role })` and `createOrder({ userId, ... })` in `src/server/test/factories/`. A `setupUsers()` helper composes them and returns `{ admin, user }` for the common case ("give me an admin and a regular user"). No factory library; the agent reads the function and uses it.
 
-**5. Test parallelism: serial.** `vitest.config.ts` sets `pool: 'forks'` with `singleFork: true`. Required by the single-DB truncate strategy. Cost is negligible at prototype scale.
+**5. Test parallelism: serial.** `vitest.config.ts` runs everything in one forked process, one file at a time — `pool: 'forks'` with `fileParallelism: false` + `maxWorkers: 1` (Vitest 4 removed the old `poolOptions.singleFork`; these are the net-equivalent replacement). Required by the single-DB truncate strategy. Cost is negligible at prototype scale. Tests are split into two Vitest projects sharing this serial config: `server` (`node` environment, the DB-backed harness) and `web` (`happy-dom` environment, RTL + MSW).
 
 **6. Test file location.** Co-locate route tests next to the route file (`auth.routes.ts` + `auth.routes.test.ts`), matching the frontend convention. Cross-cutting tests (the access-control invariant, the full auth flow) live in `src/server/__tests__/`.
 
@@ -903,17 +915,17 @@ The starter ships **three anchor tests** as smoke checks of the scaffolding and 
 
 1. `auth.routes.test.ts` — magic-link happy path: request code, verify, session created, `/auth/me` returns the user.
 2. `__tests__/access-control.test.ts` — the ownership/access-control invariant. Asserts that:
-   - a `user` cannot read another `user`'s row via an owned-resource endpoint (`GET /api/orders/:id` for someone else's order returns 404, not the row) — the IDOR guard, and
-   - a `user` calling an `admin`-only route (e.g. `POST /api/invites`) is rejected with 403.
-3. `stripe.routes.test.ts` — the payment webhook, the riskiest integration: a `checkout.session.completed` event with a valid signature marks the matching `orders` row `paid`; an invalid signature returns 400 and changes nothing; a redelivered event is idempotent (no double-processing).
+    - a `user` cannot read another `user`'s row via an owned-resource endpoint (`GET /api/orders/:id` for someone else's order returns 404, not the row) — the IDOR guard, and
+    - a `user` calling an `admin`-only route (e.g. `POST /api/invites`) is rejected with 403.
+3. `stripe.routes.test.ts` — the payment webhook, the riskiest integration: a `checkout.session.completed` event with a valid signature marks the matching `orders` row `paid`; an invalid signature returns 400 and changes nothing; a redelivered event is idempotent (no double-processing). (The session-creation half lives in a separate router, `checkout.routes.ts` — the session-protected `POST /api/checkout` create — with its own co-located `checkout.routes.test.ts`; the two payment-side routers are kept distinct.)
 
 These double as (1) templates the agent copies for new tests, (2) living documentation of the failure modes the starter most fears (broken access control / IDOR, and mishandled payment webhooks), and (3) immediate signal that the test infrastructure works on `npm test`.
 
 ### Conventions documentation
 
-Per-project agent-context docs at `src/server/docs/agents/testing.md` (and a parallel `src/web/docs/agents/testing.md`) define the rules: factory location, naming, what to test, when to mock, how to write a new integration test. `src/server/AGENTS.md` references both the conventions doc and the `tdd` skill from `skills-workflow`.
+The canonical testing rules live in the top-level topic doc `docs/agents/testing.md` (one of five canonical topic docs — `documentation`, `mcp-usage`, `react-patterns`, `testing`, `ui-components`). The per-side docs at `src/server/docs/agents/testing.md` and `src/web/docs/agents/testing.md` are thin quick-references that sit atop it ("read the canonical doc first") — they don't restate the harness rules, only the side-specific facts: factory location, naming, what to test, when to mock, how to write a new integration test. `src/server/AGENTS.md` references the conventions doc and the `tdd` skill from `skills-workflow`.
 
-The split: the `tdd` skill provides the *workflow* (red/green/refactor with vertical slices); the conventions doc provides the *project-specific patterns*; the anchor tests provide the *concrete examples*. The agent reads all three.
+The split: the `tdd` skill provides the _workflow_ (red/green/refactor with vertical slices); the conventions doc provides the _project-specific patterns_; the anchor tests provide the _concrete examples_. The agent reads all three.
 
 ### Layout
 
@@ -932,12 +944,17 @@ src/server/
     cleanRateLimitCounters.ts
   routes/
     auth.routes.ts
-    auth.routes.test.ts   # co-located route-level tests
-    stripe.routes.ts      # POST /api/stripe/webhook
+    auth.routes.test.ts       # co-located route-level tests
+    checkout.routes.ts        # POST /api/checkout (create session, auth-gated)
+    checkout.routes.test.ts
+    stripe.routes.ts          # POST /api/stripe/webhook
+    stripe.routes.test.ts
   docs/
     agents/
-      testing.md       # per-project test conventions
+      testing.md       # server-side quick-ref atop the canonical /docs/agents/testing.md
 ```
+
+(The five canonical topic docs — `documentation`, `mcp-usage`, `react-patterns`, `testing`, `ui-components` — live at the repo-root `docs/agents/`; the per-side `testing.md` shown above is the server quick-reference layered on the canonical one.)
 
 ### Modules NOT tested in the starter
 
