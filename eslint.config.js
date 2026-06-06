@@ -153,6 +153,17 @@ export default tseslint.config(
 		},
 	},
 
+	// Repo-tooling scripts (`scripts/**/*.mjs`, e.g. the downstream release-state
+	// reset) are dependency-free Node ESM outside the TS projects, like the config
+	// files above. Same treatment: drop type-checked rules and declare Node globals.
+	{
+		files: ['scripts/**/*.mjs'],
+		extends: [tseslint.configs.disableTypeChecked],
+		languageOptions: {
+			globals: globals.node,
+		},
+	},
+
 	// Must be last: turns off every formatting rule that would conflict with
 	// Prettier (Prettier owns formatting; ESLint owns correctness).
 	prettier

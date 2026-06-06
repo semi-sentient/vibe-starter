@@ -21,6 +21,7 @@
 		"lint": "eslint . --max-warnings 0",
 		"predev": "npm run db:migrate",
 		"prepare": "husky",
+		"setup": "npm install && bash scripts/bootstrap.sh",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"typecheck": "tsc -p src/server/tsconfig.json --noEmit && tsc -p src/web/tsconfig.json --noEmit"

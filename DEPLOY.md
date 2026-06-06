@@ -152,6 +152,14 @@ One-time repo/dashboard settings to confirm:
 - **Enable "Allow GitHub Actions to create and approve pull requests."** GitHub → repo **Settings → Actions → General → Workflow permissions**. Without it, [release-please](https://github.com/googleapis/release-please) cannot open its release PR, so versioning + the changelog never get cut.
 - **Auto-deploy and PR previews are dashboard toggles, not code.** Continuous deploy from `main` and per-PR preview environments are enabled in the Railway dashboard (see [Continuous deploy](#continuous-deploy-from-main) and [PR preview environments](#pr-preview-environments) above) — they're human-in-the-loop and aren't wired up by anything in the repo.
 
+### Settings that don't travel via the template
+
+GitHub's **"Use this template"** copies **files only** — repo-level settings don't come along, so set these by hand on your new repo (one time each):
+
+- **Allow GitHub Actions to create and approve pull requests** — required so release-please can open its PR. This is the first bullet above; see it for the exact location.
+- **Branch protection** — not copied either. Decide per the [Branch protection](#branch-protection) section above (optional for solo/template use, recommended once a team forms).
+- **Auto-delete head branches** (`delete_branch_on_merge`) — GitHub → repo **Settings → General → Pull Requests → "Automatically delete head branches."** Keeps merged release-please and feature branches from piling up.
+
 ## Ready for real users?
 
 This is the canonical pre-launch checklist (there is intentionally **no separate `LAUNCH_CHECKLIST.md`** — this section is it). The setup above gets you a live deployment; this is the **gate** you run before pointing real customers at it, especially before taking real payments. If anything below is unchecked, you're not ready yet. It's your own self-review, not an external audit.
