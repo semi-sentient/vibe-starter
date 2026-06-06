@@ -69,6 +69,18 @@ export default defineConfig({
 					setupFiles: ['./src/web/test/setup.ts'],
 				},
 			},
+			{
+				// Repo-tooling scripts (e.g. the downstream release-state reset) are
+				// dependency-free Node ESM with no `@/*` alias and no DB; they get a
+				// plain Node project — no `resolve`, `setupFiles`, or `plugins`. The
+				// root `globalSetup` still runs (and starts the test DB) for every
+				// project, this one just doesn't use it.
+				test: {
+					environment: 'node',
+					include: ['scripts/**/*.test.mjs'],
+					name: 'scripts',
+				},
+			},
 		],
 	},
 });
