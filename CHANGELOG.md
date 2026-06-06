@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). From this release on, the changelog is maintained automatically by [release-please](https://github.com/googleapis/release-please) from conventional commits on `main`.
 
+## [1.2.0](https://github.com/semi-sentient/vibe-starter/compare/vibe-starter-v1.1.0...vibe-starter-v1.2.0) (2026-06-06)
+
+
+### Added
+
+* **bootstrap:** reset release state and rename via npm run setup ([826fb96](https://github.com/semi-sentient/vibe-starter/commit/826fb96c726ae3031c9db63c131ea847a6b6f45f)), closes [#6](https://github.com/semi-sentient/vibe-starter/issues/6)
+* **scripts:** add downstream release-state reset module ([d06e9a6](https://github.com/semi-sentient/vibe-starter/commit/d06e9a62456639d39892a955cdede638579e791e)), closes [#6](https://github.com/semi-sentient/vibe-starter/issues/6)
+
 ## [1.1.0](https://github.com/semi-sentient/vibe-starter/compare/vibe-starter-v1.0.0...vibe-starter-v1.1.0) (2026-06-06)
 
 
