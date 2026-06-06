@@ -30,14 +30,14 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   # Full history so gitleaks can scan every commit (secret-scan backstop
                   # for the locally-skippable husky pre-commit hook).
                   fetch-depth: 0
 
             - name: Set up Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   cache: npm
                   node-version-file: .nvmrc
@@ -90,10 +90,10 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Set up Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
                   cache: npm
                   node-version-file: .nvmrc
@@ -116,12 +116,12 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   # gitleaks scans the full commit history, not just the tip.
                   fetch-depth: 0
 
             - name: Run gitleaks
-              uses: gitleaks/gitleaks-action@v2
+              uses: gitleaks/gitleaks-action@v3
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
