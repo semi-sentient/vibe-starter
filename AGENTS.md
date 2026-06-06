@@ -34,7 +34,7 @@ Before planning or writing code, check the table below. If your task matches a r
 | Styling, layout, theming, Tailwind/shadcn usage, or any component with JSX            | `docs/agents/ui-components.md`  |
 | Calling external APIs or using MCP server tools                                       | `docs/agents/mcp-usage.md`      |
 
-For architecture and the rationale behind the locked decisions (stack, auth model, access-control contract, payments shape, tooling), the design docs load on demand — read the relevant one before a structural change or when a decision's _why_ matters: [`docs/PROJECT_DESIGN.md`](docs/PROJECT_DESIGN.md), [`docs/BACKEND_DESIGN.md`](docs/BACKEND_DESIGN.md), [`docs/FRONTEND_DESIGN.md`](docs/FRONTEND_DESIGN.md), [`docs/TOOLING_DESIGN.md`](docs/TOOLING_DESIGN.md). Per-side notes live in [`src/server/AGENTS.md`](src/server/AGENTS.md) and [`src/web/AGENTS.md`](src/web/AGENTS.md).
+For architecture and the rationale behind the locked decisions (stack, auth model, access-control contract, payments shape, tooling), the design docs load on demand — read the relevant one before a structural change or when a decision's _why_ matters: [`docs/design/PROJECT_DESIGN.md`](docs/design/PROJECT_DESIGN.md), [`docs/design/BACKEND_DESIGN.md`](docs/design/BACKEND_DESIGN.md), [`docs/design/FRONTEND_DESIGN.md`](docs/design/FRONTEND_DESIGN.md), [`docs/design/TOOLING_DESIGN.md`](docs/design/TOOLING_DESIGN.md). Per-side notes live in [`src/server/AGENTS.md`](src/server/AGENTS.md) and [`src/web/AGENTS.md`](src/web/AGENTS.md).
 
 ## Plan Mode
 

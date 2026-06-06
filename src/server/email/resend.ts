@@ -16,7 +16,7 @@ const SUBJECT = 'Your sign-in code';
  * Fire-and-forget by contract: a send failure is logged and swallowed (the code
  * is already persisted, so the user can re-request). The caller always treats
  * the request as successful — there is no retry queue (that would prematurely
- * require a job queue; see BACKEND_DESIGN.md).
+ * require a job queue; see docs/design/BACKEND_DESIGN.md).
  *
  * Logging goes through the structured pino logger (P8). The dev fallback logs the
  * code at `warn` (it is deliberately visible so local auth works without Resend);

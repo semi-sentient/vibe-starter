@@ -160,7 +160,7 @@ This is the canonical pre-launch checklist (there is intentionally **no separate
 
 - [ ] Admin-only routes are gated with `requireRole('admin')`.
 - [ ] User-owned queries filter by the current user — a customer can never reach another customer's row (no IDOR).
-- [ ] The access-control anchor test passes (see `docs/BACKEND_DESIGN.md`).
+- [ ] The access-control anchor test passes (see `docs/design/BACKEND_DESIGN.md`).
 
 **Secrets are safe.**
 
