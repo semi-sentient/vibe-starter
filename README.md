@@ -1,20 +1,10 @@
 # vibe-starter
 
-An opinionated, MIT-licensed full-stack TypeScript starter: Vite + React on the
-front end, Hono + PostgreSQL on the back end, wired together with end-to-end
-type safety. Designed to give a solo builder (and their AI agent) a modern,
-maintainable foundation to ship a real app on.
+An opinionated, MIT-licensed full-stack TypeScript starter: Vite + React on the front end, Hono + PostgreSQL on the back end, wired together with end-to-end type safety. Designed to give a solo builder (and their AI agent) a modern, maintainable foundation to ship a real app on.
 
-It ships passwordless (magic-link) auth, server-side sessions, two-role access
-control, Stripe-hosted Checkout, structured logging, a Vitest harness, and a
-Dockerized deploy — so day one is spent building your feature, not your plumbing.
+It ships passwordless (magic-link) auth, server-side sessions, two-role access control, Stripe-hosted Checkout, structured logging, a Vitest harness, and a Dockerized deploy — so day one is spent building your feature, not your plumbing.
 
-> **This is a snapshot, not a dependency.** You created your repo from this
-> template, so you _own_ the code outright — there's nothing to `npm update`
-> back to. The starter will keep evolving upstream; to decide whether a later
-> improvement is worth porting in by hand, skim the [CHANGELOG](CHANGELOG.md)
-> (maintained by release-please from conventional commits). Most of the time you
-> won't need to — your fork is yours.
+> **This is a snapshot, not a dependency.** You created your repo from this template, so you _own_ the code outright — there's nothing to `npm update` back to. The starter will keep evolving upstream; to decide whether a later improvement is worth porting in by hand, skim the [CHANGELOG](CHANGELOG.md) (maintained by release-please from conventional commits). Most of the time you won't need to — your fork is yours.
 
 ## Quick Start
 
@@ -28,17 +18,12 @@ docker compose up -d                             # 4. start local Postgres
 npm run dev                                       # 5. migrate (predev) + boot web :5173 / api :3000
 ```
 
-Then open <http://localhost:5173> — you should see the Welcome page with a live
-`API ✓ connected` status badge.
+Then open <http://localhost:5173> — you should see the Welcome page with a live `API ✓ connected` status badge.
 
 Notes:
 
-- Step 3 (`bootstrap.sh`) copies `.env.example` → `.env` and fills in a strong
-  `SESSION_SECRET`; the defaults already match `docker-compose.yml`, so login
-  works immediately. The 6-digit sign-in code prints to the **server console**
-  until you add a `RESEND_API_KEY` (see [`.env.example`](.env.example)).
-- Step 5 runs migrations automatically (the `predev` hook calls `db:migrate`)
-  before starting the servers, so the schema is always current.
+- Step 3 (`bootstrap.sh`) copies `.env.example` → `.env` and fills in a strong `SESSION_SECRET`; the defaults already match `docker-compose.yml`, so login works immediately. The 6-digit sign-in code prints to the **server console** until you add a `RESEND_API_KEY` (see [`.env.example`](.env.example)).
+- Step 5 runs migrations automatically (the `predev` hook calls `db:migrate`) before starting the servers, so the schema is always current.
 
 ## Stack
 
@@ -100,45 +85,28 @@ npm run db:migrate   # apply pending migrations (also runs via the predev hook)
 npm run db:studio    # open Drizzle Studio against your local DB
 ```
 
-The pre-commit hook runs lint-staged (ESLint + Prettier on changed files) and a
-gitleaks secret scan. Commits use [Conventional Commits](https://www.conventionalcommits.org/)
-(`feat:`, `fix:`, `docs:`, …) — release-please reads them to version the project
-and update the changelog.
+The pre-commit hook runs lint-staged (ESLint + Prettier on changed files) and a gitleaks secret scan. Commits use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, …) — release-please reads them to version the project and update the changelog.
 
-When you add an environment variable, add it to the zod schema in `src/env.ts`
-(or `src/env.client.ts` for `VITE_*`) **and** to `.env.example` in the same
-change. The schema makes misconfiguration fail loudly at boot; `.env.example` is
-the contract for the next developer.
+When you add an environment variable, add it to the zod schema in `src/env.ts` (or `src/env.client.ts` for `VITE_*`) **and** to `.env.example` in the same change. The schema makes misconfiguration fail loudly at boot; `.env.example` is the contract for the next developer.
 
 ## Secret scanning (gitleaks)
 
-The pre-commit hook runs [gitleaks](https://github.com/gitleaks/gitleaks) to
-catch accidentally staged secrets. It is a Go binary, not an npm package, so
-install it separately:
+The pre-commit hook runs [gitleaks](https://github.com/gitleaks/gitleaks) to catch accidentally staged secrets. It is a Go binary, not an npm package, so install it separately:
 
 ```bash
 brew install gitleaks
 # or download a release: https://github.com/gitleaks/gitleaks/releases
 ```
 
-If gitleaks is not installed the hook prints a warning and skips the local scan
-— CI (`gitleaks-action`) scans full history as the backstop — so installing it
-locally is recommended but optional.
+If gitleaks is not installed the hook prints a warning and skips the local scan — CI (`gitleaks-action`) scans full history as the backstop — so installing it locally is recommended but optional.
 
 ## Deploying
 
-When you're ready to go live, follow the **[deploy runbook](DEPLOY.md)**. It
-walks Railway (project + Postgres add-on + prod env vars), Resend (API key +
-verifying a sending domain), and Stripe (live keys + the live webhook) in order,
-and ends with a **"Ready for real users?"** launch checklist. The app deploys as
-two Docker images (an `api` service and an nginx-fronted `web` service) behind a
-single public origin.
+When you're ready to go live, follow the **[deploy runbook](DEPLOY.md)**. It walks Railway (project + Postgres add-on + prod env vars), Resend (API key + verifying a sending domain), and Stripe (live keys + the live webhook) in order, and ends with a **"Ready for real users?"** launch checklist. The app deploys as two Docker images (an `api` service and an nginx-fronted `web` service) behind a single public origin.
 
 ## Skills (AI agent workflow)
 
-This template ships a pre-installed pipeline of agent skills under
-`.agents/skills/` (pinned in `skills-lock.json`). They encode the workflow this
-project was built with:
+This template ships a pre-installed pipeline of agent skills under `.agents/skills/` (pinned in `skills-lock.json`). They encode the workflow this project was built with:
 
 | Skill             | What it does                                                         |
 | ----------------- | -------------------------------------------------------------------- |
@@ -152,25 +120,17 @@ project was built with:
 | `handoff`         | Compact a conversation into a handoff doc for another agent          |
 | `prototype`       | Build a throwaway prototype to flesh out a design                    |
 
-New skills are added **reactively** — write one only once a pattern has actually
-recurred or a failure mode has shown up, not speculatively (see `AGENTS.md`).
+New skills are added **reactively** — write one only once a pattern has actually recurred or a failure mode has shown up, not speculatively (see `AGENTS.md`).
 
 ## Build your first feature: a contact form
 
-This walkthrough builds a public **contact form** end-to-end to teach the
-patterns you'll reuse for every feature: a Hono route, zod validation, the
-shipped `rateLimit()` middleware, a spam honeypot, and sending email through
-Resend. **The starter does not pre-ship `/api/contact`** — you're writing it.
+This walkthrough builds a public **contact form** end-to-end to teach the patterns you'll reuse for every feature: a Hono route, zod validation, the shipped `rateLimit()` middleware, a spam honeypot, and sending email through Resend. **The starter does not pre-ship `/api/contact`** — you're writing it.
 
-The endpoint: an unauthenticated `POST /api/contact` that takes a name, email,
-and message, throttles abuse by IP, silently drops bot submissions, and emails
-the message to you.
+The endpoint: an unauthenticated `POST /api/contact` that takes a name, email, and message, throttles abuse by IP, silently drops bot submissions, and emails the message to you.
 
 ### 1. Add the `CONTACT_EMAIL` environment variable (env grows in lockstep)
 
-A new feature needs a new config value: the address that receives the messages.
-Per the project's env rule, add it to the zod schema **and** `.env.example` in
-the same change.
+A new feature needs a new config value: the address that receives the messages. Per the project's env rule, add it to the zod schema **and** `.env.example` in the same change.
 
 In `src/env.ts`, add it to the schema object (keys are sorted alphabetically):
 
@@ -193,18 +153,14 @@ And in `.env.example`, document where it comes from:
 CONTACT_EMAIL=you@example.com
 ```
 
-The server now refuses to boot until `CONTACT_EMAIL` is set — config failures
-surface immediately, not as a runtime surprise.
+The server now refuses to boot until `CONTACT_EMAIL` is set — config failures surface immediately, not as a runtime surprise.
 
 ### 2. Write the route
 
-Create `src/server/routes/contact.routes.ts`. This mirrors the shipped routers
-(`auth.routes.ts`, `invites.routes.ts`): a zod schema, then middleware, then the
-handler. Two things to note:
+Create `src/server/routes/contact.routes.ts`. This mirrors the shipped routers (`auth.routes.ts`, `invites.routes.ts`): a zod schema, then middleware, then the handler. Two things to note:
 
 - **No `requireAuth`** — a contact form is public by design.
-- **`rateLimit()` runs _before_ `zValidator`**, so a flood is throttled even
-  when the body is junk (the same ordering the auth routes use).
+- **`rateLimit()` runs _before_ `zValidator`**, so a flood is throttled even when the body is junk (the same ordering the auth routes use).
 
 ```ts
 import { zValidator } from '@hono/zod-validator';
@@ -255,22 +211,12 @@ export { contactRoutes };
 
 A few details worth understanding:
 
-- `rateLimit({ key, limit, window? })` is the **shipped** middleware from
-  `src/auth/rate-limit.ts`. Passing `key: (c) => clientIp(c)` keys the counter by
-  client IP. `clientIp()` reads the left-most `X-Forwarded-For` hop (set by the
-  nginx proxy in production) and falls back to the socket address locally.
-  `window` defaults to 10 minutes.
-- The honeypot `website` field is constrained to `max(0)` — an empty string
-  passes, any content fails validation _or_ is short-circuited in the handler.
-  We accept the bot's request with a `200` rather than a `400` so it can't tell
-  the field was the trap.
+- `rateLimit({ key, limit, window? })` is the **shipped** middleware from `src/auth/rate-limit.ts`. Passing `key: (c) => clientIp(c)` keys the counter by client IP. `clientIp()` reads the left-most `X-Forwarded-For` hop (set by the nginx proxy in production) and falls back to the socket address locally. `window` defaults to 10 minutes.
+- The honeypot `website` field is constrained to `max(0)` — an empty string passes, any content fails validation _or_ is short-circuited in the handler. We accept the bot's request with a `200` rather than a `400` so it can't tell the field was the trap.
 
 ### 3. Add a Resend wrapper for the message
 
-The shipped `src/server/email/resend.ts` only knows how to send the magic-link
-code, so add a sibling wrapper for contact messages. Mirror its shape: construct
-`Resend` with the validated key, call `resend.emails.send(...)`, and log-and-
-swallow failures so a flaky email provider never 500s the form.
+The shipped `src/server/email/resend.ts` only knows how to send the magic-link code, so add a sibling wrapper for contact messages. Mirror its shape: construct `Resend` with the validated key, call `resend.emails.send(...)`, and log-and-swallow failures so a flaky email provider never 500s the form.
 
 Create `src/server/email/contact.ts`:
 
@@ -315,14 +261,11 @@ export async function sendContactEmail(msg: ContactMessage, to: string): Promise
 }
 ```
 
-Note `from` stays `onboarding@resend.dev` (Resend's shared sender) until you
-verify your own domain — see [DEPLOY.md](DEPLOY.md). `replyTo` is the sender's
-address so you can reply straight from your inbox.
+Note `from` stays `onboarding@resend.dev` (Resend's shared sender) until you verify your own domain — see [DEPLOY.md](DEPLOY.md). `replyTo` is the sender's address so you can reply straight from your inbox.
 
 ### 4. Mount the router
 
-In `src/server/app.ts`, import the router and add it alongside the others
-(imports and route mounts are sorted alphabetically):
+In `src/server/app.ts`, import the router and add it alongside the others (imports and route mounts are sorted alphabetically):
 
 ```ts
 import { contactRoutes } from '@/server/routes/contact.routes';
@@ -334,29 +277,21 @@ const app = new Hono<AppContext>()
 // …
 ```
 
-That's the whole back end: `POST /api/contact` is live, rate-limited, and
-spam-resistant.
+That's the whole back end: `POST /api/contact` is live, rate-limited, and spam-resistant.
 
 ### 5. (Frontend) the form
 
-On the web side, post to the endpoint through the typed RPC client and include
-the hidden honeypot. Keep the honeypot off-screen with a utility class and
-`aria-hidden` so real (including assistive-tech) users never fill it:
+On the web side, post to the endpoint through the typed RPC client and include the hidden honeypot. Keep the honeypot off-screen with a utility class and `aria-hidden` so real (including assistive-tech) users never fill it:
 
 ```tsx
 <input aria-hidden="true" autoComplete="off" className="sr-only" name="website" tabIndex={-1} />
 ```
 
-Wire the submit handler to the RPC client (`client.api.contact.$post({ json })`)
-the same way the existing pages call the API, and surface success/error with the
-shipped toast/alert components using **theme tokens** (e.g. `text-success`,
-`text-destructive`) — never raw palette classes.
+Wire the submit handler to the RPC client (`client.api.contact.$post({ json })`) the same way the existing pages call the API, and surface success/error with the shipped toast/alert components using **theme tokens** (e.g. `text-success`, `text-destructive`) — never raw palette classes.
 
 ### 6. (Optional) persist messages to the database
 
-Emailing is enough to start. If you also want a record, add a `contact_messages`
-table. In `src/db/schema.ts` (keys sorted alphabetically, every timestamp is
-`timestamptz`):
+Emailing is enough to start. If you also want a record, add a `contact_messages` table. In `src/db/schema.ts` (keys sorted alphabetically, every timestamp is `timestamptz`):
 
 ```ts
 export const contactMessages = pgTable('contact_messages', {
@@ -386,28 +321,19 @@ await db.insert(contactMessages).values({ email, message, name });
 
 ### 7. Test it
 
-Follow the `tdd` skill and the testing conventions in `docs/agents/testing.md`:
-an in-process integration test (`app.request('/api/contact', …)`) that asserts a
-valid post returns `200`, a filled honeypot returns `200` but sends no email
-(spy on the wrapper), a malformed body returns `400`, and the 6th rapid post
-returns `429`. **This tutorial must be run end-to-end before you ship** (see
-[TODO.md](TODO.md)).
+Follow the `tdd` skill and the testing conventions in `docs/agents/testing.md`: an in-process integration test (`app.request('/api/contact', …)`) that asserts a valid post returns `200`, a filled honeypot returns `200` but sends no email (spy on the wrapper), a malformed body returns `400`, and the 6th rapid post returns `429`. **This tutorial must be run end-to-end before you ship** (see [TODO.md](TODO.md)).
 
 ## Extending beyond the starter
 
-These are deliberately **out of scope** for the starter — each is a well-trodden
-upgrade path you can add when you actually need it:
+These are deliberately **out of scope** for the starter — each is a well-trodden upgrade path you can add when you actually need it:
 
 - **i18n** — add `react-i18next` (or similar); externalize copy into message catalogs.
 - **PWA / offline** — add a service worker + manifest (e.g. `vite-plugin-pwa`).
-- **Stripe subscriptions / Billing** — recurring prices, the Customer Portal, and
-  `customer.subscription.*` webhook events on top of the shipped one-time Checkout.
-- **Embedded card form (Stripe Elements)** — collect cards in-app with Stripe.js +
-  Elements (set `VITE_STRIPE_PUBLISHABLE_KEY`) instead of the hosted-Checkout redirect.
+- **Stripe subscriptions / Billing** — recurring prices, the Customer Portal, and `customer.subscription.*` webhook events on top of the shipped one-time Checkout.
+- **Embedded card form (Stripe Elements)** — collect cards in-app with Stripe.js + Elements (set `VITE_STRIPE_PUBLISHABLE_KEY`) instead of the hosted-Checkout redirect.
 - **Multi-tenancy** — a tenant/org table + a tenant scope on every owned query.
 - **Data grids & charts** — a table/grid lib (e.g. TanStack Table) and a charting lib.
-- **Background jobs / queues** — `pg-boss` (Postgres-backed) for retries, scheduling,
-  and email send queues, replacing the in-process periodic workers.
+- **Background jobs / queues** — `pg-boss` (Postgres-backed) for retries, scheduling, and email send queues, replacing the in-process periodic workers.
 - **Real-time** — WebSockets or SSE for live updates.
 - **APM / error tracking** — Sentry, OpenTelemetry traces, or a hosted APM.
 
