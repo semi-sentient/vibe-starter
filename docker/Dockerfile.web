@@ -25,6 +25,11 @@ COPY tsconfig.json vite.config.ts index.html ./
 COPY src ./src
 # Optional override for the two-origin escape hatch (default "/" = same origin).
 ARG VITE_API_URL
+# `build:web` is the compile-only Vite build. Validation (typecheck + lint +
+# DB-backed tests) is a SEPARATE gate — `build:validate` — run in CI and the
+# pre-commit hook, deliberately not here: re-validating in the image would need the
+# eslint/vitest configs and a live Postgres in the build context. Mirrors
+# Dockerfile.api, which bundles via `build:server`.
 RUN npm run build:web
 
 # --- runtime: nginx ---------------------------------------------------------
@@ -39,7 +44,7 @@ ENV NGINX_ENVSUBST_FILTER=API_UPSTREAM
 
 # The nginx image's entrypoint renders /etc/nginx/templates/*.template (envsubst)
 # into /etc/nginx/conf.d/ at start, so API_UPSTREAM is resolved per-deploy.
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
