@@ -2,10 +2,17 @@
 # source, so host build artifacts and installed deps never need to be copied in —
 # shipping them would only bloat the context and risk leaking stale local output.
 #
+# This file lives at the repo root on purpose: Docker reads `.dockerignore` from
+# the build-context root (always `.` here — see the `docker build … .` smoke tests
+# in DEPLOY.md), NOT from beside the Dockerfile in docker/. Moving it into docker/
+# would silently disable every exclusion below.
+#
 # Be careful: do NOT add `src/` or `src/db/migrations/` here — the api runtime
 # image COPYs `src/db/migrations/` (the .sql files + meta/_journal.json) and both
 # builds compile from `src/`. Likewise keep `index.html` (Vite's entry lives at the
-# repo root), `package*.json`, and the tsup/vite/ts configs out of this list.
+# repo root), `package*.json`, the tsup/vite/ts configs, and `docker/nginx.conf.template`
+# (COPY'd into the web image) out of this list — and never exclude the `docker/`
+# dir wholesale, or the web build loses its nginx template.
 
 # Dependencies (reinstalled in-image via `npm ci`)
 node_modules
@@ -51,11 +58,13 @@ archived
 .github
 .husky
 
-# The deploy docs and Docker plumbing themselves don't belong in the context
+# The deploy docs and Docker plumbing themselves don't belong in the context.
+# NOTE: exclude the two Dockerfiles by name, NOT the whole docker/ dir —
+# docker/nginx.conf.template must stay in the context (it's COPY'd into the web image).
 DEPLOY.md
-Dockerfile.api
-Dockerfile.web
-nginx.conf
+docker/Dockerfile.api
+docker/Dockerfile.web
 docker-compose.yml
 .dockerignore
-railway.json
+railway.api.json
+railway.web.json

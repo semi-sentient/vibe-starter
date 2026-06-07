@@ -1,6 +1,12 @@
 # Local Postgres for development. The credentials below MUST match the
 # DATABASE_URL in .env.example. The `postgres` superuser has CREATEDB, which the
 # test harness (a later phase) relies on to create `vibe_starter_test`.
+#
+# This file stays at the repo root on purpose: `docker compose` auto-discovers
+# compose files only in the CWD and its ancestors, never in subdirs. Moving it into
+# docker/ would break the bare `docker compose up -d` in the README/CONTRIBUTING/
+# bootstrap output. (Unlike the deployment Dockerfiles, this is local-dev only and
+# builds no images, so it doesn't belong in docker/ anyway.)
 services:
     postgres:
         image: postgres:17

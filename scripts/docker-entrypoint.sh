@@ -1,5 +1,5 @@
 #!/bin/sh
-# Container entrypoint for the api image (Dockerfile.api).
+# Container entrypoint for the api image (docker/Dockerfile.api).
 #
 # Runs the programmatic migrator (the P2 `runMigrations()`, bundled to
 # dist-server/migrate.js) and ONLY if it succeeds boots the server. `set -e`

@@ -2,7 +2,7 @@
 
 This is the **go-live runbook** for getting the app onto [Railway](https://railway.com). The repo ships everything the build needs — two Dockerfiles, an nginx config, and per-service Railway config — so the steps below are mostly dashboard wiring a human does once.
 
-> **Scope.** The build artifacts (`Dockerfile.api`, `Dockerfile.web`, `nginx.conf.template`, `railway.*.json`) are verified to build and run locally. Standing up the live Railway project, entering secrets, enabling PR previews, and registering the live Stripe webhook are **manual, human-in-the-loop** actions — they need a Railway account and live keys and are intentionally not automated. The full pre-launch hardening pass — the [Ready for real users?](#ready-for-real-users) checklist at the end of this file — is the gate you run once the wiring below is done (see also [Going to production](#going-to-production)).
+> **Scope.** The build artifacts (`docker/Dockerfile.api`, `docker/Dockerfile.web`, `docker/nginx.conf.template`, `railway.*.json`) are verified to build and run locally. Standing up the live Railway project, entering secrets, enabling PR previews, and registering the live Stripe webhook are **manual, human-in-the-loop** actions — they need a Railway account and live keys and are intentionally not automated. The full pre-launch hardening pass — the [Ready for real users?](#ready-for-real-users) checklist at the end of this file — is the gate you run once the wiring below is done (see also [Going to production](#going-to-production)).
 
 ## Architecture: one public origin
 
@@ -37,9 +37,9 @@ A two-origin topology (SPA and API on separate public domains, with CORS `allow-
 
 | File                                    | Purpose                                                                        |
 | --------------------------------------- | ------------------------------------------------------------------------------ |
-| `Dockerfile.api`                        | Multi-stage build of the Hono server; runs migrations then serves on port 3000 |
-| `Dockerfile.web`                        | Multi-stage build of the SPA; nginx serves it and proxies `/api`               |
-| `nginx.conf.template`                   | SPA fallback + `/api` reverse-proxy; `${API_UPSTREAM}` is substituted at start |
+| `docker/Dockerfile.api`                 | Multi-stage build of the Hono server; runs migrations then serves on port 3000 |
+| `docker/Dockerfile.web`                 | Multi-stage build of the SPA; nginx serves it and proxies `/api`               |
+| `docker/nginx.conf.template`            | SPA fallback + `/api` reverse-proxy; `${API_UPSTREAM}` is substituted at start |
 | `scripts/docker-entrypoint.sh`          | api entrypoint: migrate, then `exec` the server (PID 1, graceful SIGTERM)      |
 | `railway.api.json` / `railway.web.json` | Per-service Railway build/deploy config (point each service at its Dockerfile) |
 | `.dockerignore`                         | Keeps the build context lean                                                   |
@@ -55,14 +55,14 @@ Do this once in the [Railway dashboard](https://railway.com/dashboard).
 1. **Create a project** from this GitHub repo.
 2. **Add Postgres**: _New → Database → Add PostgreSQL_. Railway provisions it and exposes `DATABASE_URL` (and `DATABASE_PRIVATE_URL`) as service variables. Prefer the **private** URL for the api service to keep DB traffic off the public network.
 3. **Add the api service** from the repo:
-    - Set its **Config Path** to `railway.api.json` (Settings → Config-as-code). That pins the builder to `Dockerfile.api` and the healthcheck to `/api/health`.
+    - Set its **Config Path** to `railway.api.json` (Settings → Config-as-code). That pins the builder to `docker/Dockerfile.api` and the healthcheck to `/api/health`.
     - It needs **no public domain** — the web service reaches it privately. Note its **private address** (e.g. `<service>.railway.internal`); the web service points `API_UPSTREAM` at `<that-host>:3000`.
 4. **Add the web service** from the same repo:
-    - Set its **Config Path** to `railway.web.json` (builder → `Dockerfile.web`).
+    - Set its **Config Path** to `railway.web.json` (builder → `docker/Dockerfile.web`).
     - **Generate a public domain** (Settings → Networking) — this is the app's public origin and the value of `APP_ORIGIN`.
     - Set `API_UPSTREAM` to the api service's private `host:3000` (see env table).
 
-> Two services share this one repo. Railway builds each from its own **Config Path**, so both Dockerfiles live at the repo root without colliding.
+> Two services share this one repo. Railway builds each from its own **Config Path** (`railway.api.json` / `railway.web.json`), so the two Dockerfiles sit side by side in `docker/` without colliding. The deployment Docker build files — both Dockerfiles and `docker/nginx.conf.template` — live in `docker/`; `.dockerignore` and `docker-compose.yml` deliberately stay at the repo root, because Docker reads `.dockerignore` from the build-context root (always the repo root — see the smoke tests below) and `docker compose` only auto-discovers compose files in the CWD and its ancestors, not in subdirs.
 
 ## Environment variables
 
@@ -77,7 +77,7 @@ Set these per service in Railway (Variables tab). The api service is validated a
 | `SESSION_SECRET`        | ✅       | ≥32 chars. Generate with `openssl rand -base64 36`.                                               |
 | `STRIPE_SECRET_KEY`     | ✅       | **Live** key (`sk_live_…`) in production.                                                         |
 | `STRIPE_WEBHOOK_SECRET` | ✅       | The `whsec_…` from the **live** webhook endpoint you create below.                                |
-| `NODE_ENV`              | —        | Set to `production`. (`Dockerfile.api` already defaults it; set it explicitly to be safe.)        |
+| `NODE_ENV`              | —        | Set to `production`. (`docker/Dockerfile.api` already defaults it; set it explicitly to be safe.) |
 | `ADMIN_EMAILS`          | —        | Bootstrap/break-glass: comma-separated emails that resolve to ≥ `admin` at login (never demoted). |
 |                         |          | Set once to mint the first admin, then invite the rest in-app (invites are durable). Blank is OK. |
 | `RESEND_API_KEY`        | —        | Sends magic-link emails. **Unset = login codes are printed to the server log** (fine for a demo,  |
@@ -222,7 +222,7 @@ You don't need Railway to sanity-check the images. Against a local Postgres:
 
 ```sh
 # api: build, then run it pointed at a database, migrate-on-boot + health
-docker build -f Dockerfile.api -t vibe-api .
+docker build -f docker/Dockerfile.api -t vibe-api .
 docker run --rm -e DATABASE_URL=… -e APP_ORIGIN=http://localhost \
   -e SESSION_SECRET=$(openssl rand -base64 36) \
   -e STRIPE_SECRET_KEY=sk_test_x -e STRIPE_WEBHOOK_SECRET=whsec_x \
@@ -230,7 +230,7 @@ docker run --rm -e DATABASE_URL=… -e APP_ORIGIN=http://localhost \
 curl localhost:3000/api/health      # → {"db":"up","status":"ok"}
 
 # web: build, then run — nginx serves the SPA and proxies /api to $API_UPSTREAM
-docker build -f Dockerfile.web -t vibe-web .
+docker build -f docker/Dockerfile.web -t vibe-web .
 docker run --rm -e API_UPSTREAM=host.docker.internal:3000 -p 8080:80 vibe-web
 curl localhost:8080/                 # → index.html
 curl localhost:8080/login            # → index.html (SPA fallback)
