@@ -12,6 +12,10 @@
 
 This codebase will outlive you. Every shortcut you take becomes someone else's burden. Every hack compounds into technical debt that slows the whole team down. You are not just writing code. You are shaping the future of this project. The patterns you establish will be copied. The corners you cut will be cut again. Fight entropy.
 
+## Communicating With the User
+
+Match explanations and questions to the user's demonstrated level — infer it from their words, don't assume (models skew to expert-level by default, so correct toward the user's actual level). With an engineer, use precise terms and skip the hand-holding; with a non-technical user, translate. Recalibrate each turn — responding _below_ someone's level frustrates as much as above it. When the user reads as non-technical, follow [`docs/agents/communicating-with-users.md`](docs/agents/communicating-with-users.md); it matters most inside the interview skills (`grill-*`, `write-a-prd`, `prd-to-plan`, `prototype`) — keep their rigor, soften their delivery.
+
 ## Coding Standards
 
 **No Barrel Exports** — Import from source files directly (`./Foo.tsx`), not `index.ts`.
@@ -26,13 +30,14 @@ This codebase will outlive you. Every shortcut you take becomes someone else's b
 
 Before planning or writing code, check the table below. If your task matches a row, read that documentation file first. Only read files relevant to the current task.
 
-| When task involves…                                                                   | Documentation                   |
-| ------------------------------------------------------------------------------------- | ------------------------------- |
-| Creating or modifying any source file (inline comments, JSDoc, public-interface docs) | `docs/agents/documentation.md`  |
-| Creating or modifying components, custom hooks, or context providers                  | `docs/agents/react-patterns.md` |
-| Writing or updating unit tests                                                        | `docs/agents/testing.md`        |
-| Styling, layout, theming, Tailwind/shadcn usage, or any component with JSX            | `docs/agents/ui-components.md`  |
-| Calling external APIs or using MCP server tools                                       | `docs/agents/mcp-usage.md`      |
+| When task involves…                                                                   | Documentation                             |
+| ------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Creating or modifying any source file (inline comments, JSDoc, public-interface docs) | `docs/agents/documentation.md`            |
+| Creating or modifying components, custom hooks, or context providers                  | `docs/agents/react-patterns.md`           |
+| Writing or updating unit tests                                                        | `docs/agents/testing.md`                  |
+| Styling, layout, theming, Tailwind/shadcn usage, or any component with JSX            | `docs/agents/ui-components.md`            |
+| Calling external APIs or using MCP server tools                                       | `docs/agents/mcp-usage.md`                |
+| Interviewing the user, asking clarifying questions, or any interactive skill          | `docs/agents/communicating-with-users.md` |
 
 ## Architecture & Locked Decisions
 
