@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -50,6 +50,30 @@ function resetChangelog(filePath) {
 }
 
 /**
+ * Rewrite the README's H1 from the template name to the new project name. This is
+ * deliberately H1-ONLY (not a global `s/vibe-starter/…/g`): the README intentionally
+ * references the upstream template — the `[CHANGELOG](…/semi-sentient/vibe-starter/…)`
+ * link and the "snapshot, not a dependency" note must keep pointing upstream.
+ *
+ * No-op when the README is absent, or when its first line is not exactly the
+ * template H1 (`# vibe-starter`) — i.e. an already-renamed or customized title is
+ * left untouched, keeping the rewrite idempotent and safe. Only the title line
+ * changes; the rest of the file is preserved byte-for-byte.
+ */
+function resetReadmeTitle(filePath, projectName) {
+	if (!existsSync(filePath)) return;
+
+	const current = readFileSync(filePath, 'utf8');
+	const newlineIndex = current.indexOf('\n');
+	const firstLine = newlineIndex === -1 ? current : current.slice(0, newlineIndex);
+	if (firstLine !== `# ${TEMPLATE_NAME}`) return;
+
+	const rest = newlineIndex === -1 ? '' : current.slice(newlineIndex);
+	writeFileSync(filePath, `# ${projectName}${rest}`);
+	process.stdout.write(`Renamed README title to "${projectName}"\n`);
+}
+
+/**
  * Reset downstream release-please state and rename the package.
  *
  * `originUrl` is passed IN (not read from git here) so the upstream-remote guard
@@ -80,6 +104,7 @@ export function resetReleaseState({ originUrl, projectName, repoRoot }) {
 	const packagePath = join(repoRoot, 'package.json');
 	const configPath = join(repoRoot, 'release-please-config.json');
 	const changelogPath = join(repoRoot, 'CHANGELOG.md');
+	const readmePath = join(repoRoot, 'README.md');
 
 	const currentName = JSON.parse(readFileSync(packagePath, 'utf8')).name;
 	if (currentName !== TEMPLATE_NAME) {
@@ -105,6 +130,8 @@ export function resetReleaseState({ originUrl, projectName, repoRoot }) {
 	});
 
 	resetChangelog(changelogPath);
+
+	resetReadmeTitle(readmePath, projectName);
 
 	process.stdout.write('Release state reset complete\n');
 
