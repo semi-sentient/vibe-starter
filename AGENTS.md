@@ -26,6 +26,10 @@ Match explanations and questions to the user's demonstrated level — infer it f
 **Vendored Code** — Files emitted by an external CLI (notably shadcn/ui output under `src/web/components/ui/`) are third-party. Leave them as the tool generates them — they're exempt from the naming, alphabetical-ordering, return-type, and documentation conventions above, so the CLI can update them in place. Restyle via theme tokens (see `docs/agents/ui-components.md`); don't hand-edit.
 **Priority Order** — When guidelines conflict: 1. Type safety → 2. User experience → 3. Maintainability → 4. Test coverage → 5. Formatting
 
+## Task Completion
+
+Run `npm run build:validate` after **every set of code changes** (chains tsc → eslint → vitest). Fix failures before completing.
+
 ## Topic Documentation
 
 Before planning or writing code, check the table below. If your task matches a row, read that documentation file first. Only read files relevant to the current task.

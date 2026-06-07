@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
 import importPlugin from 'eslint-plugin-import';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
@@ -112,6 +113,22 @@ export default tseslint.config(
 			'react-hooks/exhaustive-deps': 'error',
 			'react/jsx-key': 'error',
 		},
+	},
+
+	// Static accessibility linting for JSX (jsx-eslint org). Catches the
+	// source-level a11y subset — missing alt text, label-less inputs, ARIA misuse,
+	// interactive elements without keyboard handlers, positive tabindex — at lint
+	// time, with zero runtime cost. Complements (does not replace) the rendered-DOM
+	// checks; the computed-DOM rules (color contrast, etc.) need a real browser.
+	//
+	// Vendored shadcn `ui/**` is exempt (same rationale as the arbitrary-value guard
+	// below): the shadcn CLI regenerates those files, so an a11y finding there isn't
+	// ours to hand-fix without diverging from upstream. They lint clean today; the
+	// `ignores` guards against a future regen breaking the build on un-fixable code.
+	{
+		...jsxA11y.flatConfigs.recommended,
+		files: ['src/web/**/*.{ts,tsx}'],
+		ignores: ['src/web/components/ui/**'],
 	},
 
 	// Vendored shadcn components are third-party: they legitimately use arbitrary
