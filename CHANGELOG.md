@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). From this release on, the changelog is maintained automatically by [release-please](https://github.com/googleapis/release-please) from conventional commits on `main`.
 
+## [1.3.1](https://github.com/semi-sentient/vibe-starter/compare/vibe-starter-v1.3.0...vibe-starter-v1.3.1) (2026-06-07)
+
+
+### Fixed
+
+* generate a unique SESSION_SECRET on setup (drop the shared placeholder) ([d9ee641](https://github.com/semi-sentient/vibe-starter/commit/d9ee64168cca1502608da3240f860a6d0b1c0d40))
+* **scripts:** generate a unique SESSION_SECRET on setup ([25a9296](https://github.com/semi-sentient/vibe-starter/commit/25a9296a582d7329de962e31d90641bc773889c3))
+
 ## [1.3.0](https://github.com/semi-sentient/vibe-starter/compare/vibe-starter-v1.2.0...vibe-starter-v1.3.0) (2026-06-07)
 
 
