@@ -10,6 +10,7 @@ Web code is the Vite + React client (`src/web/**`).
 - **Styling / Tailwind / shadcn / theming** — [`/docs/agents/ui-components.md`](../../docs/agents/ui-components.md) (theme tokens only — incl. `success`/`warning`; no raw palette classes; vendored `components/ui/` is exempt).
 - **Source-file docs** — [`/docs/agents/documentation.md`](../../docs/agents/documentation.md).
 - **Tests** — [`./docs/agents/testing.md`](./docs/agents/testing.md) (RTL + `@testing-library/user-event`, MSW, happy-dom), atop the canonical [`/docs/agents/testing.md`](../../docs/agents/testing.md).
+- **Structural change / locked-decision _why_** — [`/docs/design/FRONTEND_DESIGN.md`](../../docs/design/FRONTEND_DESIGN.md) (Vite + React, data fetching, error handling — rationale behind the locked frontend decisions).
 
 ## Web non-negotiables
 

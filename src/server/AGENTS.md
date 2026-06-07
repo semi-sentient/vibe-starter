@@ -10,6 +10,7 @@ Server code is the Hono app, DB schema/migrations, and the auth/payments modules
 - **API / network-boundary types** — [`/docs/agents/documentation.md`](../../docs/agents/documentation.md) (wire type ≠ DB type; per-field TSDoc).
 - **External calls / MCP** — [`/docs/agents/mcp-usage.md`](../../docs/agents/mcp-usage.md).
 - **Tests** — [`./docs/agents/testing.md`](./docs/agents/testing.md) (DB harness, factories), atop the canonical [`/docs/agents/testing.md`](../../docs/agents/testing.md).
+- **Structural change / locked-decision _why_** — [`/docs/design/BACKEND_DESIGN.md`](../../docs/design/BACKEND_DESIGN.md) (Hono + Postgres, auth, the access-control contract — rationale behind the locked backend decisions).
 
 ## Server non-negotiables
 
