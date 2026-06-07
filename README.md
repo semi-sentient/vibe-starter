@@ -21,7 +21,7 @@ Then open <http://localhost:5173> — you should see the Welcome page with a liv
 
 Notes:
 
-- Step 2 (`npm run setup`) installs dependencies, then bootstraps the repo: it copies `.env.example` → `.env` and fills in a strong `SESSION_SECRET`, and resets the release state for your new project. It prompts for a project name (default = the repo folder name; pass it non-interactively with `npm run setup -- my-app`) and rewrites `package.json` + the release-please config so your first release is a clean `v0.1.0`. The defaults in `.env` already match `docker-compose.yml`, so login works immediately. The 6-digit sign-in code prints to the **server console** until you add a `RESEND_API_KEY` (see [`.env.example`](.env.example)).
+- Step 2 (`npm run setup`) installs dependencies, then bootstraps the repo: it copies `.env.example` → `.env` and fills in a strong `SESSION_SECRET`, and resets the release state for your new project. It prompts for a project name (default = the repo folder name; pass it non-interactively with `npm run setup -- my-app`) and rewrites `package.json` + the release-please config (so your first release is a clean `v0.1.0`) and this README's title. The defaults in `.env` already match `docker-compose.yml`, so login works immediately. The 6-digit sign-in code prints to the **server console** until you add a `RESEND_API_KEY` (see [`.env.example`](.env.example)).
 - Step 4 runs migrations automatically (the `predev` hook calls `db:migrate`) before starting the servers, so the schema is always current.
 
 ## Stack
