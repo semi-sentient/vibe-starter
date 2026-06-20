@@ -30,7 +30,7 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
               with:
                   # Full history so gitleaks can scan every commit (secret-scan backstop
                   # for the locally-skippable husky pre-commit hook).
@@ -90,7 +90,7 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
 
             - name: Set up Node
               uses: actions/setup-node@v6
@@ -116,7 +116,7 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
               with:
                   # gitleaks scans the full commit history, not just the tip.
                   fetch-depth: 0
