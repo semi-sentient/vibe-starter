@@ -6,12 +6,13 @@ Load this reference once at Step 2 (before user confirmation) and keep it in wor
 
 ## Agent Modes (full definitions)
 
+Each mode below lists a `subagent_type` — that value is Claude Code's reference agent type. On a host with a different delegation mechanism, map the mode's role onto its nearest isolated-context worker; the role definition, not the `subagent_type` string, is the contract.
+
 ### Research
 
 | Parameter     | Value     |
 | ------------- | --------- |
 | subagent_type | `Explore` |
-| model         | `sonnet`  |
 
 **Role:** Technical research assistant focused on gathering codebase context.
 
@@ -24,7 +25,6 @@ Load this reference once at Step 2 (before user confirmation) and keep it in wor
 | Parameter     | Value             |
 | ------------- | ----------------- |
 | subagent_type | `general-purpose` |
-| model         | `opus`            |
 
 **Role:** Highly skilled software engineer who writes code that is performant, maintainable, accessible, and correct. If the workspace's AGENTS.md/CLAUDE.md defines a `Code Agent Role` section, use that as the role identity instead of this default.
 
@@ -37,7 +37,6 @@ Load this reference once at Step 2 (before user confirmation) and keep it in wor
 | Parameter     | Value             |
 | ------------- | ----------------- |
 | subagent_type | `general-purpose` |
-| model         | `opus`            |
 
 **Role:** Experienced technical leader who evaluates architectural tradeoffs, resolves design ambiguities, and makes structural decisions. Gathers context, weighs alternatives, and produces a clear recommendation — does not implement code.
 
@@ -62,7 +61,6 @@ Load this reference once at Step 2 (before user confirmation) and keep it in wor
 | Parameter     | Value             |
 | ------------- | ----------------- |
 | subagent_type | `general-purpose` |
-| model         | `opus`            |
 
 **Role:** Expert software debugger specializing in systematic problem diagnosis and resolution.
 

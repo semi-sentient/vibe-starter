@@ -29,7 +29,7 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/prd-to-plan/SKILL.md",
-      "computedHash": "33d6e0b4da3ef7204352d276abcb058aaa700e9c08db7b7279bd5e4f2017ce87"
+      "computedHash": "9d6f4c67723564cfc5b829bed1240f99121007dbeaf79f8c70d0ab132cf30618"
     },
     "prototype": {
       "source": "mattpocock/skills",
@@ -41,7 +41,7 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/run-plan/SKILL.md",
-      "computedHash": "9c0d9b920b3bf6109cf9aeacf069d5901a656a12a54de4fb8585e9e84df7b848"
+      "computedHash": "a3390cb008bd48f6dd9cf8d76fa574310938b6388fdea2edb7bfd28f06da2dae"
     },
     "tdd": {
       "source": "semi-sentient/skills-workflow",
