@@ -1,6 +1,6 @@
 {
 	"name": "vibe-starter",
-	"version": "1.3.1",
+	"version": "1.3.2",
 	"description": "An opinionated, MIT-licensed full-stack TypeScript starter template.",
 	"license": "MIT",
 	"private": true,

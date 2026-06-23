@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). From this release on, the changelog is maintained automatically by [release-please](https://github.com/googleapis/release-please) from conventional commits on `main`.
 
+## [1.3.2](https://github.com/semi-sentient/vibe-starter/compare/vibe-starter-v1.3.1...vibe-starter-v1.3.2) (2026-06-23)
+
+
+### Fixed
+
+* **build:** make build compile-only by decoupling from build:validate ([f0627fa](https://github.com/semi-sentient/vibe-starter/commit/f0627fa59a3b306e9601e1f7d08c39499a306838))
+
 ## [1.3.1](https://github.com/semi-sentient/vibe-starter/compare/vibe-starter-v1.3.0...vibe-starter-v1.3.1) (2026-06-07)
 
 
