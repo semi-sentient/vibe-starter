@@ -11,13 +11,13 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/grill-me/SKILL.md",
-      "computedHash": "fdf633621ac99b955d8f5581c16d23995abb31e03c25a6cb122fbe7e1157def5"
+      "computedHash": "1cc1d5df8c25200fd765e5d2b8e6bf50a2197dfdf6ec842f9fbb7395e57a194e"
     },
     "grill-with-docs": {
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/grill-with-docs/SKILL.md",
-      "computedHash": "53f735775f4472577414399d78dc2568babdf962c61d11874c51f6d2970a7d4b"
+      "computedHash": "222c89368b1f394d9a1872dd9396492b4211ac305a27e9131e2be83058bdf576"
     },
     "handoff": {
       "source": "mattpocock/skills",
@@ -41,7 +41,7 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/run-plan/SKILL.md",
-      "computedHash": "a3390cb008bd48f6dd9cf8d76fa574310938b6388fdea2edb7bfd28f06da2dae"
+      "computedHash": "8e93128120d747283cc32953f56c0d89337e93e9ab23854f9f84353b40b048ac"
     },
     "tdd": {
       "source": "semi-sentient/skills-workflow",
