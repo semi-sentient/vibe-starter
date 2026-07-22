@@ -41,7 +41,7 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/run-plan/SKILL.md",
-      "computedHash": "8e93128120d747283cc32953f56c0d89337e93e9ab23854f9f84353b40b048ac"
+      "computedHash": "256c8f35aab0797f8e8486474eddacab4f9bb4d82e39c1361c7f7d6d916a478b"
     },
     "tdd": {
       "source": "semi-sentient/skills-workflow",
