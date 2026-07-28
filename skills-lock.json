@@ -5,7 +5,7 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/commit/SKILL.md",
-      "computedHash": "b780c90db1d4ba662210ca1733fe813c7b358b309f2349284f6778345a3cbe9a"
+      "computedHash": "6490e1300431d3d4173bfbc9e174eb65c6b0434f4b5c3a52ed1568cd5f917e1c"
     },
     "grill-me": {
       "source": "semi-sentient/skills-workflow",
@@ -41,7 +41,7 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/run-plan/SKILL.md",
-      "computedHash": "256c8f35aab0797f8e8486474eddacab4f9bb4d82e39c1361c7f7d6d916a478b"
+      "computedHash": "0029e278fbb1c2b6e5404d405b16d91c7bc28bf9f5ccccc543166002f712288e"
     },
     "tdd": {
       "source": "semi-sentient/skills-workflow",
