@@ -5,6 +5,7 @@
 		"dockerfilePath": "docker/Dockerfile.web"
 	},
 	"deploy": {
+		"healthcheckPath": "/",
 		"restartPolicyType": "ON_FAILURE"
 	}
 }
