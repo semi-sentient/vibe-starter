@@ -13,7 +13,11 @@
 #      and on an already-renamed package — so this step always calls it.
 #   3. Generate a strong SESSION_SECRET in .env when the value is empty or still
 #      the template placeholder (a real, user-set secret is left untouched).
-#   4. Print next steps.
+#   4. Apply this project's GitHub settings (required CI checks on the default
+#      branch, plus the merge settings) via scripts/setup-github.mjs. Optional and
+#      quiet: without `gh`, without a GitHub sign-in, or without admin access it
+#      prints one skip line and exits 0.
+#   5. Print next steps.
 
 set -euo pipefail
 
@@ -71,7 +75,14 @@ else
 	echo "SESSION_SECRET already set in .env — leaving it untouched."
 fi
 
-# 4. Next steps.
+# 4. Apply the GitHub settings this project expects. The module owns every guard
+#    and decides for itself whether anything can be applied, so this step always
+#    calls it. `|| true` because we run under `set -e` and a GitHub step must never
+#    fail bootstrap: the module already exits 0 when it skips, and this covers the
+#    rest (a `node` that dies, a repo whose settings simply cannot be changed).
+node "$REPO_ROOT/scripts/setup-github.mjs" || true
+
+# 5. Next steps.
 cat <<'EOF'
 
 Bootstrap complete. Next:
