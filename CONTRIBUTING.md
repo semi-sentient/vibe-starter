@@ -1,12 +1,14 @@
 # Contributing & maintainer verification
 
-This file is for **template maintainers** — anyone validating `vibe-starter` itself before tagging a release. (If you cloned this template to build _your own_ app, you want [`README.md`](README.md) for setup and [`DEPLOY.md`](DEPLOY.md) for go-live.) The release gate lives in [`TODO.md`](TODO.md); this file is the step-by-step runbook behind its cross-platform item.
+This file is for **template maintainers** — anyone validating `vibe-starter` itself before cutting a release with `npm run release`. (If you cloned this template to build _your own_ app, you want [`README.md`](README.md) for setup and [`DEPLOY.md`](DEPLOY.md) for go-live.) The release gate lives in [`TODO.md`](TODO.md); this file is the step-by-step runbook behind its cross-platform item.
 
 ## Local verification (Tier 1)
 
 The **Tier-1** journey proves the template works end-to-end on a fresh checkout with **zero external accounts** — no Resend, Stripe, Railway, or any signup. It runs on **macOS, Linux, and Windows (under WSL or Git-Bash)**. Everything below uses only local Postgres (via Docker) and the console-printed magic code.
 
 Run it from a clean clone before cutting a release. CI runs the automatable parts on every push (see [Cross-platform CI](#cross-platform-ci-the-automated-gate)), so this manual pass is mainly about the human-in-the-loop steps: the console-magic-code login and the gitleaks pre-commit hook.
+
+Releases themselves are **local, not CI**: `npm run release` reads the conventional commits since the last `vX.Y.Z` tag with git-cliff, writes the `CHANGELOG.md` section, bumps the version, tags, pushes, and publishes the GitHub release — all under your own `git`/`gh` credentials. Run it from `main`, on a clean tree, after this pass is green. It refuses (and says why) on a dirty tree, off the default branch, or when nothing since the last tag maps to a changelog section. Rationale for the local-not-CI shape is in [`docs/design/TOOLING_DESIGN.md`](docs/design/TOOLING_DESIGN.md#versioning-automation). **Before the first release on a repo that has had `npm run setup:github` applied, read the open question in [`DEPLOY.md`](DEPLOY.md#branch-protection)** — the required-checks ruleset may refuse the release's push to `main`, and that interaction has not been exercised yet.
 
 ### The journey
 
@@ -101,12 +103,14 @@ Without normalization, a Windows checkout would convert shell scripts and config
 
 ## Cross-platform CI (the automated gate)
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) has two build jobs:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) has four jobs. Their **display names** matter as much as their ids: three of them are named verbatim in the `main-required-checks` ruleset (see [`DEPLOY.md`](DEPLOY.md)), and GitHub will wait forever for a required check whose name no job produces — so renaming one blocks every PR. `ci.yml` carries a contract comment above each; `scripts/setup-github.mjs` reads the names back out of the file and refuses to apply the ruleset if one has gone missing.
 
-- **`build-and-test`** (ubuntu only) — attaches a Postgres **service container** and runs the full suite: install → typecheck → lint → `npm test` (DB-backed) → build. This is the single DB-backed leg.
-- **`cross-platform`** — a `fail-fast: false` matrix over `[ubuntu-latest, macos-latest, windows-latest]` running install → typecheck → lint → build. It carries **no service container**, because GitHub Actions `services:` are declared at job level and are **Linux-only**; attaching one to the matrix would fail the macOS/Windows legs. The DB-backed test therefore stays in the ubuntu-only job, while this job proves the build itself runs everywhere.
+- **`build-and-test`** → display name **`Build & test`** _(required)_ — ubuntu only. Attaches a Postgres **service container** and runs the full suite: install → typecheck → lint → `npm test` (DB-backed) → build. This is the single DB-backed leg.
+- **`cross-platform`** → display name **`Cross-platform build (<os>)`** _(informational — deliberately not required)_ — a `fail-fast: false` matrix over `[ubuntu-latest, macos-latest, windows-latest]` running install → typecheck → lint → build. It carries **no service container**, because GitHub Actions `services:` are declared at job level and are **Linux-only**; attaching one to the matrix would fail the macOS/Windows legs. The DB-backed test therefore stays in the ubuntu-only job, while this job proves the build itself runs everywhere. It is out of the ruleset because a matrix leg's context name changes with the matrix.
+- **`gitleaks`** → display name **`Secret scan`** _(required)_ — scans full git history, the backstop for the locally-skippable pre-commit hook.
+- **`docker-smoke`** → display name **`Docker smoke`** _(required)_ — builds both production Dockerfiles and runs the real stack (Postgres + api + nginx web) on a Docker network, then asserts through the web container's proxy: `/` and `/login` return 200, the served HTML references at least one JS URL **and** every **same-origin** one of those comes back with a JavaScript content type (URLs on another origin are skipped — they are not ours to serve; the SPA fallback answers 200 for a missing asset, so status alone would pass a blank page), and `/api/health` reports `"db":"up"` plus a `"version"` field. That last one proves the bundled `package.json` import survives into a runtime image that contains no `package.json`. It is the "green but undeployable" gate — `Build & test` proves the code compiles and its tests pass, which is not the same as "the images Railway builds actually boot".
 
-A third job, `gitleaks`, scans full history. Cross-OS green is only observable once the branch is pushed and the workflow runs on GitHub's hosted runners.
+Cross-OS green is only observable once the branch is pushed and the workflow runs on GitHub's hosted runners. What CI does **not** prove: that the app looks right, or that a bundle which loads doesn't throw once it runs. Local review before the PR is the only thing that covers those.
 
 ## Tier 2 (optional go-live dry-run)
 

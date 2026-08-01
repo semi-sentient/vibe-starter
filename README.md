@@ -4,7 +4,7 @@ An opinionated, MIT-licensed full-stack TypeScript starter: Vite + React on the 
 
 It ships passwordless (magic-link) auth, server-side sessions, two-role access control, Stripe-hosted Checkout, structured logging, a Vitest harness, and a Dockerized deploy — so day one is spent building your feature, not your plumbing.
 
-> **This is a snapshot, not a dependency.** You created your repo from this template, so you _own_ the code outright — there's nothing to `npm update` back to. The starter will keep evolving upstream; to decide whether a later improvement is worth porting in by hand, skim the [CHANGELOG](https://github.com/semi-sentient/vibe-starter/blob/main/CHANGELOG.md) (maintained by release-please from conventional commits). Most of the time you won't need to — your fork is yours.
+> **This is a snapshot, not a dependency.** You created your repo from this template, so you _own_ the code outright — there's nothing to `npm update` back to. The starter will keep evolving upstream; to decide whether a later improvement is worth porting in by hand, skim the [CHANGELOG](https://github.com/semi-sentient/vibe-starter/blob/main/CHANGELOG.md) (maintained from the project's conventional commits, one entry per release). Most of the time you won't need to — your fork is yours.
 
 ## Quick Start
 
@@ -21,7 +21,8 @@ Then open <http://localhost:5173> — you should see the Welcome page with a liv
 
 Notes:
 
-- Step 2 (`npm run setup`) installs dependencies, then bootstraps the repo: it copies `.env.example` → `.env` and fills in a strong `SESSION_SECRET`, and resets the release state for your new project. It prompts for a project name (default = the repo folder name; pass it non-interactively with `npm run setup -- my-app`) and rewrites `package.json` + the release-please config (so your first release is a clean `v0.1.0`) and this README's title. The defaults in `.env` already match `docker-compose.yml`, so login works immediately. The 6-digit sign-in code prints to the **server console** until you add a `RESEND_API_KEY` (see [`.env.example`](.env.example)).
+- Step 2 (`npm run setup`) installs dependencies, then bootstraps the repo: it copies `.env.example` → `.env` and fills in a strong `SESSION_SECRET`, and clears the template's inherited release history so your project starts fresh. It prompts for a project name (default = the repo folder name; pass it non-interactively with `npm run setup -- my-app`), then renames the package in `package.json`, resets its version to `0.0.0` (so your first `npm run release` cuts a clean `v0.1.0`), empties the CHANGELOG down to its intro, and rewrites this README's title. Nothing else is touched. The defaults in `.env` already match `docker-compose.yml`, so login works immediately. The 6-digit sign-in code prints to the **server console** until you add a `RESEND_API_KEY` (see [`.env.example`](.env.example)).
+- Step 2 also tries — quietly, and only if it can — to configure your GitHub repo: required CI checks on `main`, plus auto-delete of merged branches. It needs a few things lined up — among them the [GitHub CLI](https://cli.github.com) installed and signed in, and admin access to the repo; if any one of them is missing it prints one line and moves on, and setup still succeeds. Run `npm run setup:github` yourself later to apply it — it names the one that stopped it. Details in the [deploy runbook](DEPLOY.md#branch-protection).
 - Step 4 runs migrations automatically (the `predev` hook calls `db:migrate`) before starting the servers, so the schema is always current.
 
 ## Stack
@@ -82,11 +83,14 @@ npm run build        # production build of web (Vite) + server (tsup)
 npm run db:generate  # author a new SQL migration from a schema.ts change
 npm run db:migrate   # apply pending migrations (also runs via the predev hook)
 npm run db:studio    # open Drizzle Studio against your local DB
+npm run release      # cut a release: changelog entry, version bump, tag, GitHub release
 ```
 
-The pre-commit hook runs lint-staged (ESLint + Prettier on changed files) and a gitleaks secret scan. Commits use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, …) — release-please reads them to version the project and update the changelog.
+The pre-commit hook runs lint-staged (ESLint + Prettier on changed files) and a gitleaks secret scan. Commits use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, …) — `npm run release` reads them to version the project and write the changelog.
 
-When you add an environment variable, add it to the zod schema in `src/env.ts` (or `src/env.client.ts` for `VITE_*`) **and** to `.env.example` in the same change. The schema makes misconfiguration fail loudly at boot; `.env.example` is the contract for the next developer.
+Releases are cut **locally**, never by CI. `npm run release` reads the conventional commits since the last `vX.Y.Z` tag, prepends the new CHANGELOG section, bumps the version, commits, tags, pushes, and creates the GitHub release — all under your own `git` and `gh` credentials. No bot ever pushes a commit or opens a pull request on your behalf. It refuses (with the reason) on a dirty working tree, on a branch other than the default one, or when nothing release-worthy has landed since the last tag. One thing to check before your first one: if you have run `npm run setup:github`, the required checks it puts on `main` may refuse the release's push — an unresolved open question, written up in [Branch protection](DEPLOY.md#branch-protection).
+
+Every new env var updates three files in the same change: the zod schema (`src/env.ts`, or `src/env.client.ts` for `VITE_*`), `.env.example`, and `.env.test`. The schema makes misconfiguration fail loudly at boot, `.env.example` is the contract for the next developer, and `.env.test` keeps the test suite booting.
 
 ## Secret scanning (gitleaks)
 
@@ -98,6 +102,24 @@ brew install gitleaks
 ```
 
 If gitleaks is not installed the hook prints a warning and skips the local scan — CI (`gitleaks-action`) scans full history as the backstop — so installing it locally is recommended but optional.
+
+## How shipping works
+
+Publishing a change is a loop, and your agent owns all of it. Your part is looking at the app and saying go.
+
+1. **You look at it first, locally.** The agent runs the app on your machine and tells you what to check. Nothing goes out on inferred consent. This step exists because the automated checks prove the app builds, boots, and passes its tests — they cannot see that a page looks wrong. Only you can.
+2. **The agent opens a pull request** — a proposal to change the live app — under your own GitHub login. It never asks you for a token.
+3. **The checks run.** GitHub builds the app, runs the whole test suite against a real database, scans the full history for leaked secrets, and boots the real Docker images to confirm the thing actually starts. The agent waits for them and fixes anything red before coming back to you — a failing check is its problem, not yours to decipher.
+4. **Green means merge, and merge means live.** Merging into `main` is what publishes. Railway rebuilds both services and swaps them in.
+5. **The agent confirms it is really live** by asking the running app which commit it is serving (`/api/health` reports the version and the first 7 characters of the deployed commit), then tells you in three plain sentences what shipped, where it is, and how to undo it.
+
+**Want to see a change before it merges?** Preview environments are **opt-in**: switch them on in Railway and every pull request gets its own throwaway copy of the app, with its own database and its own URL. They're off by default because most solo builders review locally and previews cost money — see [the preview-environment section of the deploy runbook](DEPLOY.md#pr-preview-environments) when you want one.
+
+**Undoing a release is one instruction:** "go back to the version before X". The agent undoes the change and ships that undo the same way it ships anything else — pull request, checks, merge — because an undo is a change too, and the checks guarding `main` apply to it like any other. Both services then redeploy from the same commit, so the two halves of your app never disagree. The one thing a revert cannot undo is a database change, so the agent asks first when the change included one — [Rollback](DEPLOY.md#rollback) has the detail and the manual fallback.
+
+**Version numbers are cut on your machine, not by a bot.** `npm run release` reads your conventional commits, writes the changelog entry, bumps the version, tags it, and publishes a GitHub release. Nothing in CI ever pushes a commit or opens a pull request for you.
+
+The rules the agent follows are written down in the **Shipping** section of [`AGENTS.md`](AGENTS.md); the one-time human setup — Railway, GitHub settings, going live — is in the [deploy runbook](DEPLOY.md).
 
 ## Deploying
 
@@ -129,7 +151,7 @@ The endpoint: an unauthenticated `POST /api/contact` that takes a name, email, a
 
 ### 1. Add the `CONTACT_EMAIL` environment variable (env grows in lockstep)
 
-A new feature needs a new config value: the address that receives the messages. Per the project's env rule, add it to the zod schema **and** `.env.example` in the same change.
+A new feature needs a new config value: the address that receives the messages. The project's env rule applies here exactly as it does everywhere else. Every new env var updates three files in the same change: the zod schema (`src/env.ts`, or `src/env.client.ts` for `VITE_*`), `.env.example`, and `.env.test`.
 
 In `src/env.ts`, add it to the schema object (keys are sorted alphabetically):
 
@@ -145,11 +167,15 @@ const schema = z.object({
 });
 ```
 
-And in `.env.example`, document where it comes from:
+Then document it in `.env.example` and give it a dummy value in `.env.test` — the second one is not optional bookkeeping: a required var with no value in `.env.test` fails every test at boot, not just the contact-form ones.
 
 ```bash
+# .env.example — where the value comes from.
 # Address that receives contact-form submissions (the first-feature tutorial).
 CONTACT_EMAIL=you@example.com
+
+# .env.test — a dummy that satisfies the schema so `npm test` still boots.
+CONTACT_EMAIL=contact@example.com
 ```
 
 The server now refuses to boot until `CONTACT_EMAIL` is set — config failures surface immediately, not as a runtime surprise.

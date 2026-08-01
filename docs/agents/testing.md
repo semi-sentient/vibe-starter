@@ -2,10 +2,11 @@
 
 Project-specific harness rules and gotchas. Generic testing-library/Vitest API knowledge is assumed.
 
-## Two Vitest projects (`vitest.config.ts`)
+## Three Vitest projects (`vitest.config.ts`)
 
 - **`web`** — `src/web/**`. Environment is **happy-dom, not jsdom** — some DOM behavior differs, so don't assume jsdom quirks. jest-dom + MSW are wired into the web test setup.
 - **`server`** — `src/server/**`, `src/auth/**`, `src/payments/**`. Node env, **DB-backed** against a real test Postgres.
+- **`scripts`** — `scripts/**/*.test.mjs` (repo tooling: the release flow, the GitHub-settings applier, the downstream reset). Node env, plain JS, **no `@/*` alias and no setup files** — these modules are dependency-free Node ESM, so don't reach for `src/` helpers or the DB factories in them. The root `globalSetup` still boots the test Postgres for this project too, so `npm test` needs the local DB up even when you only touched `scripts/`.
 
 Non-obvious config facts (the WHY, since the file is readable):
 
