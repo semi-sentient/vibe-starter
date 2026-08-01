@@ -4,8 +4,9 @@ import { z } from 'zod';
  * Client-side environment schema, validated at bundle time from `import.meta.env`.
  *
  * Only `VITE_*` variables are exposed to the browser bundle by Vite. NEVER put a
- * secret here — anything in this schema ships to the client. This grows phase by
- * phase; every addition MUST also be added to `.env.example` in the same change.
+ * secret here — anything in this schema ships to the client.
+ *
+ * Every new env var updates three files in the same change: the zod schema (`src/env.ts`, or `src/env.client.ts` for `VITE_*`), `.env.example`, and `.env.test`.
  */
 const schema = z.object({
 	// Base URL for the Hono RPC client. The app mounts routes under `.basePath('/api')`,

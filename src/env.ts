@@ -3,9 +3,9 @@ import { z, ZodError } from 'zod';
 /**
  * Server-side environment schema, parsed once at boot.
  *
- * This grows phase by phase. Every new variable added here MUST also be added
- * to `.env.example` in the same change (see AGENTS.md). Secrets live here only,
- * never in `VITE_*` (those ship to the browser bundle).
+ * Every new env var updates three files in the same change: the zod schema (`src/env.ts`, or `src/env.client.ts` for `VITE_*`), `.env.example`, and `.env.test`.
+ *
+ * Secrets live here only, never in `VITE_*` (those ship to the browser bundle).
  */
 const schema = z.object({
 	// Comma-separated allowlist of emails granted the `admin` role at login.

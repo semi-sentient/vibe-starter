@@ -797,7 +797,7 @@ Vite exposes only `VITE_`-prefixed env vars to the browser bundle. The starter s
 
 ### Discipline
 
-A rule in AGENTS.md: every new env var updates `.env.example` AND the validation schema in the same change. This prevents drift between machines and CI.
+Every new env var updates three files in the same change: the zod schema (`src/env.ts`, or `src/env.client.ts` for `VITE_*`), `.env.example`, and `.env.test`. That rule lives in AGENTS.md; it prevents drift between machines and CI.
 
 ---
 
