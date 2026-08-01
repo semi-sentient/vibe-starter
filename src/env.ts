@@ -28,6 +28,11 @@ const schema = z.object({
 	APP_ORIGIN: z.string().url(),
 	DATABASE_URL: z.string().url(),
 	NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+	// Full git commit SHA of the running deploy, injected automatically by Railway.
+	// OPTIONAL: absent in local dev and in plain `docker run`. `/api/health` surfaces
+	// its first 7 characters as `sha` (or `null` when unset) so "what's live" is
+	// machine-readable. Nothing to configure by hand.
+	RAILWAY_GIT_COMMIT_SHA: z.string().optional(),
 	// Resend API key for sending magic-link emails. Optional: when unset, the code
 	// is logged to the server console instead (dev fallback).
 	RESEND_API_KEY: z.string().optional(),

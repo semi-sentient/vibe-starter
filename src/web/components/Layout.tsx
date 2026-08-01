@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/web/auth/AuthProvider';
 import { Button } from '@/web/components/ui/button';
+import { VersionStamp } from '@/web/components/VersionStamp';
 
 interface LayoutProps {
 	children?: ReactNode;
@@ -13,7 +14,8 @@ interface LayoutProps {
  * ends the session via `useAuth().logout` and returns to the public home (`/`).
  *
  * When given no children it shows a neutral empty state, so a freshly scaffolded
- * authed route still renders something sensible.
+ * authed route still renders something sensible. A footer carries the
+ * {@link VersionStamp} so every authed page says which build is running.
  */
 export function Layout({ children }: LayoutProps) {
 	const { logout, user } = useAuth();
@@ -55,6 +57,10 @@ export function Layout({ children }: LayoutProps) {
 			<main className="mx-auto w-full max-w-5xl flex-1 p-4 md:p-8">
 				{children ?? <p className="text-muted-foreground">Nothing here yet.</p>}
 			</main>
+
+			<footer className="border-t p-4">
+				<VersionStamp />
+			</footer>
 		</div>
 	);
 }

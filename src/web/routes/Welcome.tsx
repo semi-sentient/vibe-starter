@@ -1,5 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { client } from '@/web/api/client';
+import { useHealth } from '@/web/api/useHealth';
 import { Button } from '@/web/components/ui/button';
 import {
 	Card,
@@ -8,30 +7,26 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/web/components/ui/card';
+import { VersionStamp } from '@/web/components/VersionStamp';
 import { cn } from '@/web/lib/utils';
 
 /**
  * Public, unauthenticated landing page mounted at `/`.
  *
- * Doubles as the end-to-end RPC type-safety proof: it calls the typed Hono
- * client (`client.api.health.$get()`) through TanStack Query and reflects the
- * result in live status badges. The `/health` endpoint also probes the database,
- * so the response distinguishes three states the badges mirror:
- *   - fetch rejects (server unreachable)      → API ✗, Database ✗
- *   - 503 `{ db: 'down' }` (server up, DB out) → API ✓, Database ✗
- *   - 200 `{ db: 'up' }`                       → API ✓, Database ✓
+ * Doubles as the end-to-end RPC type-safety proof: the shared `useHealth` query
+ * calls the typed Hono client (`client.api.health.$get()`) and the result drives
+ * live status badges. The `/health` endpoint also probes the database, so the
+ * response distinguishes three states the badges mirror:
+ *   - fetch rejects (server unreachable)                              → API ✗, Database ✗
+ *   - 503 `{ db: 'down', sha, status: 'degraded', version }`          → API ✓, Database ✗
+ *   - 200 `{ db: 'up', sha, status: 'ok', version }`                  → API ✓, Database ✓
  * A 503 is deliberately NOT thrown — it is a real server response, so the query
  * resolves with the parsed body and the API badge stays green.
+ *
+ * The same query backs the {@link VersionStamp} below (one cache entry, one fetch).
  */
 export function Welcome() {
-	const health = useQuery({
-		queryFn: async () => {
-			// Resolves on any HTTP response (200 or 503); only a network failure rejects.
-			const res = await client.api.health.$get();
-			return res.json();
-		},
-		queryKey: ['health'],
-	});
+	const health = useHealth();
 
 	// A resolved query means the server responded at all — that is the API signal.
 	const apiConnected = health.isSuccess;
@@ -98,6 +93,8 @@ export function Welcome() {
 					</a>
 				</nav>
 			</div>
+
+			<VersionStamp />
 		</main>
 	);
 }

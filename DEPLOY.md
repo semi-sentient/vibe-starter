@@ -70,19 +70,21 @@ Set these per service in Railway (Variables tab). The api service is validated a
 
 ### api service (runtime)
 
-| Variable                | Required | Notes                                                                                             |
-| ----------------------- | -------- | ------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`          | ✅       | Use Railway Postgres's **private** URL. Reference it as `${{Postgres.DATABASE_PRIVATE_URL}}`.     |
-| `APP_ORIGIN`            | ✅       | The web service's **public** origin, no trailing slash (e.g. `https://app.example.com`).          |
-| `SESSION_SECRET`        | ✅       | ≥32 chars. Generate with `openssl rand -base64 36`.                                               |
-| `STRIPE_SECRET_KEY`     | ✅       | **Live** key (`sk_live_…`) in production.                                                         |
-| `STRIPE_WEBHOOK_SECRET` | ✅       | The `whsec_…` from the **live** webhook endpoint you create below.                                |
-| `NODE_ENV`              | —        | Set to `production`. (`docker/Dockerfile.api` already defaults it; set it explicitly to be safe.) |
-| `ADMIN_EMAILS`          | —        | Bootstrap/break-glass: comma-separated emails that resolve to ≥ `admin` at login (never demoted). |
-|                         |          | Set once to mint the first admin, then invite the rest in-app (invites are durable). Blank is OK. |
-| `RESEND_API_KEY`        | —        | Sends magic-link emails. **Unset = login codes are printed to the server log** (fine for a demo,  |
-|                         |          | not for real users). Set a real key before launch.                                                |
-| `ANTHROPIC_API_KEY`     | —        | Unused by shipped code; a validated slot for builders adding AI features.                         |
+| Variable                 | Required | Notes                                                                                             |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`           | ✅       | Use Railway Postgres's **private** URL. Reference it as `${{Postgres.DATABASE_PRIVATE_URL}}`.     |
+| `APP_ORIGIN`             | ✅       | The web service's **public** origin, no trailing slash (e.g. `https://app.example.com`).          |
+| `SESSION_SECRET`         | ✅       | ≥32 chars. Generate with `openssl rand -base64 36`.                                               |
+| `STRIPE_SECRET_KEY`      | ✅       | **Live** key (`sk_live_…`) in production.                                                         |
+| `STRIPE_WEBHOOK_SECRET`  | ✅       | The `whsec_…` from the **live** webhook endpoint you create below.                                |
+| `NODE_ENV`               | —        | Set to `production`. (`docker/Dockerfile.api` already defaults it; set it explicitly to be safe.) |
+| `ADMIN_EMAILS`           | —        | Bootstrap/break-glass: comma-separated emails that resolve to ≥ `admin` at login (never demoted). |
+|                          |          | Set once to mint the first admin, then invite the rest in-app (invites are durable). Blank is OK. |
+| `RESEND_API_KEY`         | —        | Sends magic-link emails. **Unset = login codes are printed to the server log** (fine for a demo,  |
+|                          |          | not for real users). Set a real key before launch.                                                |
+| `ANTHROPIC_API_KEY`      | —        | Unused by shipped code; a validated slot for builders adding AI features.                         |
+| `RAILWAY_GIT_COMMIT_SHA` | —        | Set automatically by Railway — nothing to configure. `/api/health` reports its first 7 characters |
+|                          |          | as `sha`, so you can tell which commit is live. Absent locally, where `sha` is `null`.            |
 
 > `PORT`: not needed. The server listens on a fixed `3000` and the web service proxies to `${API_UPSTREAM}` (default `…:3000`). If you expose the api publicly on Railway anyway, Railway's edge maps the public port to the container's 3000.
 
@@ -227,12 +229,14 @@ docker run --rm -e DATABASE_URL=… -e APP_ORIGIN=http://localhost \
   -e SESSION_SECRET=$(openssl rand -base64 36) \
   -e STRIPE_SECRET_KEY=sk_test_x -e STRIPE_WEBHOOK_SECRET=whsec_x \
   -p 3000:3000 vibe-api
-curl localhost:3000/api/health      # → {"db":"up","status":"ok"}
+curl localhost:3000/api/health      # → {"db":"up","sha":null,"status":"ok","version":"1.3.2"}
 
 # web: build, then run — nginx serves the SPA and proxies /api to $API_UPSTREAM
 docker build -f docker/Dockerfile.web -t vibe-web .
 docker run --rm -e API_UPSTREAM=host.docker.internal:3000 -p 8080:80 vibe-web
 curl localhost:8080/                 # → index.html
 curl localhost:8080/login            # → index.html (SPA fallback)
-curl localhost:8080/api/health       # → proxied to the api → {"db":"up","status":"ok"}
+curl localhost:8080/api/health       # → proxied to the api → {"db":"up","sha":null,"status":"ok","version":"1.3.2"}
 ```
+
+`version` is the api's `package.json` version, bundled into the image at build time. `sha` is `null` here because Railway is what injects `RAILWAY_GIT_COMMIT_SHA`; on a real deploy it is the first 7 characters of the deployed commit, so `/api/health` tells you exactly what is live.
