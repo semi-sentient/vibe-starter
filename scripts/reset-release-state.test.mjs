@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { planRelease, RELEASABLE_TYPES } from './release.mjs';
 import { resetReleaseState } from './reset-release-state.mjs';
 
 // This file lives in `<repoRoot>/scripts/`, so the repo root is its parent. Derived
@@ -97,6 +98,152 @@ function readJson(file) {
 function headerBlockOf(changelog) {
 	const firstEntry = changelog.indexOf('\n## ');
 	return firstEntry === -1 ? changelog : changelog.slice(0, firstEntry + 1);
+}
+
+/**
+ * True only in the template repo itself.
+ *
+ * The `itInTemplate` cases read the LIVE `CHANGELOG.md` / `cliff.toml`, and downstream
+ * both files belong to the user: hand-editing the intro (or deleting either file) would
+ * redden their next commit — this suite gates it via pre-commit →
+ * `npm run build:validate` → `npm test` — with a failure message about `cliff.toml` that
+ * means nothing in their repo. Every OTHER case here is self-contained and still runs
+ * everywhere.
+ */
+function isTemplateRepo() {
+	try {
+		return (
+			JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')).name ===
+			'vibe-starter'
+		);
+	} catch {
+		return false;
+	}
+}
+
+/** Runs only in the template repo — see {@link isTemplateRepo}. */
+const itInTemplate = it.skipIf(!isTemplateRepo());
+
+/**
+ * Decode `[changelog] header` out of `cliff.toml` without a TOML parser (`scripts/` is
+ * dependency-free, and Node has no built-in TOML support).
+ *
+ * Exact rather than approximate because the header is written as a TOML *literal*
+ * multi-line string (`'''`): literal strings perform NO escape processing, so the value
+ * is precisely the bytes between the delimiters, minus the newline that immediately
+ * follows the opening `'''`. Both of those rules are applied below, which is why this
+ * asserts on the DECODED string and not on raw TOML source.
+ *
+ * **Switching the header to a basic string (`"""`) would make this decoder wrong** —
+ * those process backslash escapes — hence the loud throw when the form is not found.
+ */
+function cliffChangelogHeader(cliffToml) {
+	const match = /^header = '''\n([\s\S]*?)'''$/m.exec(cliffToml);
+	if (!match) {
+		throw new Error(
+			"cliff.toml's `[changelog] header` is no longer a `'''`-delimited literal " +
+				'string; this reader only handles that form (see its doc comment).'
+		);
+	}
+	return match[1];
+}
+
+/**
+ * Decode the conventional-commit types `cliff.toml` MAPS to a changelog section, in file
+ * order — the catch-all (`{ message = ".*", skip = true }`) and any other skipping entry
+ * excluded, since a skipped type is precisely one that cannot produce a release.
+ *
+ * Same no-TOML-parser discipline as {@link cliffChangelogHeader}, and the same loudness:
+ * every entry must be one of the two forms this reader understands, or it throws rather
+ * than quietly dropping a mapping and comparing a shorter list.
+ */
+function cliffMappedCommitTypes(cliffToml) {
+	const block = /^commit_parsers = \[\n([\s\S]*?)^\]$/m.exec(cliffToml);
+	if (!block) {
+		throw new Error(
+			"cliff.toml's `[git] commit_parsers` is no longer a `[`-to-`]` block of one " +
+				'entry per line; this reader only handles that form (see its doc comment).'
+		);
+	}
+
+	const types = [];
+	for (const line of block[1].split('\n').filter((entry) => entry.trim() !== '')) {
+		const fields = /^\t\{ (.+) \},$/.exec(line);
+		if (!fields) throw new Error(`Unreadable cliff.toml commit_parsers entry: ${line}`);
+		// A skipping entry is not a releasable type, whatever else it says.
+		if (/(^|[^\w])skip = true([^\w]|$)/.test(fields[1])) continue;
+
+		const mapping = /^message = "\^([a-z]+)", group = "[A-Za-z]+"$/.exec(fields[1]);
+		if (!mapping) {
+			throw new Error(
+				`cliff.toml commit_parsers entry is neither a \`^<type>\` → group mapping nor ` +
+					`a skip, so this reader cannot say whether it is releasable: ${line}`
+			);
+		}
+		types.push(mapping[1]);
+	}
+	return types;
+}
+
+/**
+ * Decode `[git] tag_pattern` out of `cliff.toml`, un-escaping the TOML basic string.
+ *
+ * Basic strings (`"…"`) DO process escapes, so the raw source `"^v[0-9]+\\.…"` denotes the
+ * value `^v[0-9]+\.…`. Only `\\` is decoded — anything else throws, because a silently
+ * mis-decoded pattern would make the assertion below test a regex that is not the one
+ * git-cliff uses.
+ */
+function cliffTagPattern(cliffToml) {
+	const match = /^tag_pattern = "(.*)"$/m.exec(cliffToml);
+	if (!match) {
+		throw new Error(
+			"cliff.toml's `[git] tag_pattern` is no longer a single-line basic string; " +
+				'this reader only handles that form (see its doc comment).'
+		);
+	}
+	if (!/^(?:[^"\\]|\\\\)*$/.test(match[1])) {
+		throw new Error(
+			"cliff.toml's `[git] tag_pattern` uses a TOML escape this reader does not " +
+				'decode; only `\\\\` is handled (see its doc comment).'
+		);
+	}
+	return match[1].replace(/\\\\/g, '\\');
+}
+
+/**
+ * What `git tag -l 'v[0-9]*'` — the exact glob `release.mjs` gathers `matchingTagsExist`
+ * with — lists in a throwaway repo carrying `tags`. Constructed rather than reasoned
+ * about: glob semantics are git's, not this suite's, to define.
+ */
+function tagsMatchingReleaseGlob(tags) {
+	const repo = mkdtempSync(join(tmpdir(), 'release-tag-glob-'));
+	// Config is passed per invocation so the developer's own global git config (commit
+	// signing, hooks, templates, `init.defaultBranch`) cannot change the answer.
+	const git = (...args) =>
+		execFileSync(
+			'git',
+			[
+				'-c',
+				'commit.gpgsign=false',
+				'-c',
+				'user.email=t@example.com',
+				'-c',
+				'user.name=T',
+				...args,
+			],
+			{ cwd: repo, encoding: 'utf8' }
+		);
+
+	try {
+		git('init', '-q', '-b', 'main');
+		git('commit', '-q', '--allow-empty', '-m', 'chore: init');
+		for (const tag of tags) git('tag', tag);
+		return git('tag', '-l', 'v[0-9]*')
+			.split('\n')
+			.filter((line) => line !== '');
+	} finally {
+		rmSync(repo, { force: true, recursive: true });
+	}
 }
 
 describe('resetReleaseState', () => {
@@ -249,16 +396,15 @@ describe('resetReleaseState', () => {
 		expect(changelog.endsWith('.\n\n')).toBe(true);
 	});
 
-	it("emits a stub byte-identical to this repo's own CHANGELOG header block", () => {
+	itInTemplate("emits a stub byte-identical to this repo's own CHANGELOG header block", () => {
 		// The cases above use a synthetic header, so they pin the transformation but not
 		// its coupling to reality. This one seeds the fixture with the LIVE CHANGELOG and
 		// asserts the emitted stub equals the live header block byte-for-byte, so a future
 		// edit to the intro prose cannot silently drift the two apart.
 		//
-		// In a repo generated from this template the live CHANGELOG is already the stub,
-		// so `headerBlockOf` returns the whole file and this degenerates into the same
-		// idempotence check as the case below — still a true statement, just a weaker one.
-		// The strong drift guard is what runs HERE, in the template.
+		// Template-only: downstream the live CHANGELOG is the user's, and is already the
+		// stub anyway, so this would degenerate into the idempotence check below while
+		// gaining the power to redden their commits. The strong drift guard runs HERE.
 		const liveChangelog = readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8');
 		const liveHeader = headerBlockOf(liveChangelog);
 		writeFileSync(join(fixtureRoot, 'CHANGELOG.md'), liveChangelog);
@@ -285,14 +431,13 @@ describe('resetReleaseState', () => {
 		).toBe(liveHeader);
 	});
 
-	it('re-emits an already-stubbed CHANGELOG byte-for-byte', () => {
+	itInTemplate('re-emits an already-stubbed CHANGELOG byte-for-byte', () => {
 		// The state of a repo generated from this template: `npm run setup` already ran,
 		// so CHANGELOG.md IS the header stub and has no `## ` heading left. Running the
 		// reset again must return the identical bytes — anything else and the stub stops
 		// matching the release tooling's configured header the moment the reset is re-run.
-		// Seeded from the LIVE header so this case runs identically in the template and
-		// downstream; in the template it is the only case that exercises the no-`## `
-		// branch of `resetChangelog()`, which is the branch downstream repos always take.
+		// Seeded from the LIVE header, so it is the only case exercising the no-`## `
+		// branch of `resetChangelog()` — the branch downstream repos always take.
 		const liveHeader = headerBlockOf(readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8'));
 		writeFileSync(join(fixtureRoot, 'CHANGELOG.md'), liveHeader);
 
@@ -324,5 +469,77 @@ describe('resetReleaseState', () => {
 		const pkg = readJson('package.json');
 		expect(pkg.name).toBe('my-app');
 		expect(pkg.version).toBe('0.0.0');
+	});
+});
+
+describe('cliff.toml', () => {
+	itInTemplate("configures a changelog header byte-identical to this repo's CHANGELOG", () => {
+		// The only thing coupling the two. The live-CHANGELOG case above derives BOTH
+		// sides of its assertion from the same file, so a docs pass that rewords the intro
+		// moves them together and leaves `cliff.toml` behind — silently, until someone
+		// cuts a release and gets a duplicated header.
+		const changelog = readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8');
+		const cliffToml = readFileSync(join(REPO_ROOT, 'cliff.toml'), 'utf8');
+
+		expect(
+			cliffChangelogHeader(cliffToml),
+			[
+				"`cliff.toml`'s `[changelog] header` drifted from this repo's CHANGELOG header.",
+				'git-cliff `--prepend` `replacen`-s that exact string out of the file before',
+				're-emitting it, so a one-byte difference duplicates the header on the next',
+				'release — here AND in every downstream repo, where the header block is the',
+				'whole CHANGELOG. Copy the current bytes above the first `## ` heading in',
+				'CHANGELOG.md into `cliff.toml`.',
+			].join(' ')
+		).toBe(headerBlockOf(changelog));
+	});
+
+	itInTemplate('maps exactly the commit types the release refusals name', () => {
+		// `release.mjs` names these types in two refusal messages, and nothing else couples
+		// the sentence to the config. Drift is invisible until someone is told, wrongly,
+		// which commit types would have produced a release.
+		const cliffToml = readFileSync(join(REPO_ROOT, 'cliff.toml'), 'utf8');
+
+		expect(
+			cliffMappedCommitTypes(cliffToml).join(', '),
+			[
+				"`RELEASABLE_TYPES` in `scripts/release.mjs` drifted from `cliff.toml`'s mapped",
+				'`commit_parsers` (the entries with a `group`; the trailing `skip = true`',
+				'catch-all is not one). That string is the list `npm run release` prints when it',
+				'refuses — a maintainer told the wrong set of types either ships nothing or',
+				'writes a commit that still produces no release. Copy the mapped types, in',
+				'`cliff.toml` order, into `RELEASABLE_TYPES`.',
+			].join(' ')
+		).toBe(RELEASABLE_TYPES);
+	});
+
+	itInTemplate('refuses a release when the tag glob matches tags `tag_pattern` cannot', () => {
+		// The two patterns are different dialects on purpose, and this constructs the gap
+		// between them instead of assuming it: real tags, listed by the real glob, tested
+		// against the real configured pattern. (`^v[0-9]+\.…$` is the same expression in
+		// Rust and JS, so `RegExp` is a faithful stand-in for git-cliff's matcher.)
+		const unreadable = ['v1.2', 'v1.3.0-rc.1', 'v2024.01'];
+		const globbed = tagsMatchingReleaseGlob([...unreadable, 'vibe-starter-v1.3.2']);
+		expect(globbed).toEqual(unreadable);
+
+		const tagPattern = new RegExp(
+			cliffTagPattern(readFileSync(join(REPO_ROOT, 'cliff.toml'), 'utf8'))
+		);
+		expect(globbed.some((tag) => tagPattern.test(tag))).toBe(false);
+
+		// So `matchingTagsExist` is true — this is NOT a first release — while git-cliff
+		// has no baseline: `--bumped-version` exits 1 with empty stdout and the CLI gathers
+		// `''`. Planning a release from that would tag `v` and `npm version ''`.
+		const plan = planRelease({
+			bumpedVersion: '',
+			currentBranch: 'main',
+			currentVersion: '1.2.0',
+			defaultBranch: 'main',
+			isDirty: false,
+			matchingTagsExist: globbed.length > 0,
+		});
+
+		expect(plan.action).toBe('refuse');
+		expect(plan.reason).toContain('`vX.Y.Z`');
 	});
 });

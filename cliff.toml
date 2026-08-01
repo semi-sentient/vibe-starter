@@ -1,0 +1,82 @@
+# git-cliff configuration — the changelog + release-notes format for `npm run release`.
+#
+# Releases are cut locally by `scripts/release.mjs`, never in CI. This file ships
+# downstream with the template, where it is optional local tooling.
+
+[changelog]
+# Keep a Changelog shape: `## [X.Y.Z] - YYYY-MM-DD`, `### <Section>`, `- <message>`.
+# git-cliff's built-in default body emits a different heading form, so the template is
+# spelled out rather than inherited. A literal TOML string (`'''`) keeps the Tera
+# `{{ … }}` / `{% … %}` markup free of escape processing.
+#
+# Whitespace control is load-bearing, not tidiness. Tera emits the literal newline that
+# follows every `{% … %}` tag, so the naive template double-spaces the bullets
+# (`- A\n\n- B`) — which diverges visibly from the hand-written `1.0.0` entry, and
+# permanently: CHANGELOG.md is Prettier-ignored, so nothing normalises it afterwards.
+# `{%-` on the inner `endfor` eats the newline after each bullet, and the trailing blank
+# line below is what separates this entry from the one `--prepend` pushes down (git-cliff
+# drops one trailing newline when `trim` is on). Verified by rendering; changing either
+# changes the shape of every future release.
+body = '''
+{% if version %}## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+{% for commit in commits %}
+- {{ commit.message | upper_first }}
+{%- endfor %}
+{% endfor %}
+
+'''
+
+# ⚠️ BYTE-EXACT CONTRACT — this must equal everything above the first `## ` heading in
+# CHANGELOG.md, trailing blank line included. `--prepend` `replacen`-s this exact string
+# out of the existing file before re-emitting it, so a one-byte drift duplicates the
+# header on the next release — here AND in every repo generated from this template,
+# where `resetChangelog()` makes that header block the whole CHANGELOG. The coupling is
+# enforced by the `cliff.toml` suite in `scripts/reset-release-state.test.mjs`; if you
+# edit the CHANGELOG intro, copy the new bytes here.
+#
+# The literal form (`'''`) is deliberate: TOML performs NO escape processing inside it,
+# so the value is exactly the bytes between the delimiters minus the newline that
+# immediately follows the opening `'''`. That makes the value recoverable without a TOML
+# parser (`scripts/` has no dependencies) and unambiguous to a human. Safe here because
+# the header contains no `'''` sequence — do not introduce one.
+header = '''
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The changelog is maintained automatically from the project's conventional commits.
+
+'''
+
+# Trims leading/trailing whitespace off each line of the rendered BODY. It does not
+# touch `header`, whose trailing blank line is load-bearing (see above).
+trim = true
+
+[git]
+# Section names come from Keep a Changelog. Only `Added` and `Fixed` appear in the
+# history so far; the rest are here so the mapping is complete when a commit uses them.
+#
+# The trailing catch-all is load-bearing, not decoration: `filter_unconventional` only
+# drops commits that are not conventional at all. A conventional commit whose type has
+# no parser (`chore:`, `docs:`, `build:`, `ci:`, …) is still emitted, grouped under its
+# raw type — verified: without this entry the changelog grows a `### chore` section.
+# Hiding those matches the six-section behaviour this repo has always had.
+commit_parsers = [
+	{ message = "^feat", group = "Added" },
+	{ message = "^fix", group = "Fixed" },
+	{ message = "^perf", group = "Changed" },
+	{ message = "^revert", group = "Removed" },
+	{ message = "^deprecate", group = "Deprecated" },
+	{ message = "^security", group = "Security" },
+	{ message = ".*", skip = true },
+]
+conventional_commits = true
+filter_unconventional = true
+# ANCHORED Rust regex, and it must stay under `[git]` — at the top level git-cliff
+# silently ignores it. Anchoring matters: the repo's legacy tags are component-prefixed
+# (`vibe-starter-v1.3.2`), and an unanchored pattern would match them and bump from the
+# wrong baseline. The release script's own `git tag -l 'v[0-9]*'` is a git GLOB, not this
+# regex — the two are not interchangeable.
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"

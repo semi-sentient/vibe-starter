@@ -20,16 +20,18 @@
 Dockerfile* text eol=lf
 *.template text eol=lf
 
-# Config and source files commonly assumed to be LF by toolchains. `*.md` and
-# `*.mjs` are pinned too because the downstream CHANGELOG stub is asserted
-# byte-for-byte against this repo's own CHANGELOG header block
-# (`scripts/reset-release-state.test.mjs`), and the reset script always emits LF —
-# a CRLF checkout would fail those assertions on Windows.
+# Config and source files commonly assumed to be LF by toolchains. `*.md`, `*.mjs`
+# and `*.toml` are pinned too because the downstream CHANGELOG stub AND
+# `cliff.toml`'s `[changelog] header` are both asserted byte-for-byte against this
+# repo's own CHANGELOG header block (`scripts/reset-release-state.test.mjs`), and
+# the reset script always emits LF — a CRLF checkout would fail those assertions on
+# Windows, where CI never runs the test step to catch it.
 *.yml text eol=lf
 *.yaml text eol=lf
 *.json text eol=lf
 *.md text eol=lf
 *.mjs text eol=lf
+*.toml text eol=lf
 *.ts text eol=lf
 *.tsx text eol=lf
 
