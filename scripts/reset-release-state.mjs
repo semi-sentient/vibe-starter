@@ -3,8 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Resets release-please's version state in a freshly-cloned downstream copy of
- * this template so the next release starts from a clean `0.1.0`, then renames the
+ * Clears the inherited release history from a freshly-cloned downstream copy of this
+ * template — version zeroed, CHANGELOG truncated to its intro — and renames the
  * package to the new project. A no-op unless this is genuinely a downstream repo
  * (see the guards in {@link resetReleaseState}).
  *
@@ -38,15 +38,22 @@ function rewriteJson(filePath, mutate) {
 
 /**
  * Replace the CHANGELOG with just its header and intro paragraph — every version
- * entry is dropped so release-please prepends the downstream repo's first release
- * itself. The stub is derived by truncating at the first `## ` heading rather than
- * hardcoded, so it tracks edits to the template's intro wording.
+ * entry is dropped so the downstream repo's changelog starts empty. The stub is
+ * derived by truncating at the first `## ` heading rather than hardcoded, so it
+ * tracks edits to the template's intro wording.
+ *
+ * **The trailing blank line is load-bearing**: the stub must be byte-identical to
+ * everything above the first `## ` in the template's CHANGELOG, because that exact
+ * string is also the release tooling's configured changelog header, and prepending a
+ * release section strips the configured header from the file before re-emitting it.
+ * A one-byte drift duplicates the header on the first release instead. Re-running is
+ * idempotent: a file that is already the stub trims and re-emits to itself.
  */
 function resetChangelog(filePath) {
 	const current = readFileSync(filePath, 'utf8');
 	const firstEntry = current.indexOf('\n## ');
 	const stub = firstEntry === -1 ? current : current.slice(0, firstEntry);
-	writeFileSync(filePath, stub.trimEnd() + '\n');
+	writeFileSync(filePath, stub.trimEnd() + '\n\n');
 }
 
 /**
@@ -74,7 +81,10 @@ function resetReadmeTitle(filePath, projectName) {
 }
 
 /**
- * Reset downstream release-please state and rename the package.
+ * Reset a downstream repo's release state and rename the package: `package.json`
+ * takes the new name and version `0.0.0` (the first local release seeds `0.1.0` from
+ * there), the CHANGELOG is truncated to its intro stub, and the README H1 is renamed.
+ * Nothing else is touched.
  *
  * `originUrl` is passed IN (not read from git here) so the upstream-remote guard
  * is testable without a real remote — the CLI wrapper resolves it via
@@ -100,9 +110,7 @@ export function resetReleaseState({ originUrl, projectName, repoRoot }) {
 		return { reason: 'project name is still the template name', reset: false };
 	}
 
-	const manifestPath = join(repoRoot, '.release-please-manifest.json');
 	const packagePath = join(repoRoot, 'package.json');
-	const configPath = join(repoRoot, 'release-please-config.json');
 	const changelogPath = join(repoRoot, 'CHANGELOG.md');
 	const readmePath = join(repoRoot, 'README.md');
 
@@ -113,20 +121,9 @@ export function resetReleaseState({ originUrl, projectName, repoRoot }) {
 
 	process.stdout.write(`Resetting release state for "${projectName}"\n`);
 
-	rewriteJson(manifestPath, (manifest) => {
-		manifest['.'] = '0.0.0';
-	});
-
 	rewriteJson(packagePath, (pkg) => {
 		pkg.name = projectName;
 		pkg.version = '0.0.0';
-	});
-
-	rewriteJson(configPath, (config) => {
-		const root = config.packages['.'];
-		root['include-component-in-tag'] = false;
-		root['initial-version'] = '0.1.0';
-		root['package-name'] = projectName;
 	});
 
 	resetChangelog(changelogPath);

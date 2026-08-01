@@ -6,14 +6,17 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { resetReleaseState } from './reset-release-state.mjs';
 
-// Each fixture is seeded from KNOWN, LITERAL pre-reset content (name `vibe-starter`,
-// version/manifest `1.1.0`, a full CHANGELOG, a `# vibe-starter` README) rather than
-// by copying the live repo's own state files. That makes the suite self-contained:
-// it asserts the exact same outcome in this template AND in any repo generated from
-// it that has already run `npm run setup` (where those live files are already reset).
-// The literals below only need the fields the assertions touch.
-const PRE_RESET_MANIFEST = { '.': '1.1.0' };
+// This file lives in `<repoRoot>/scripts/`, so the repo root is its parent. Derived
+// from the module URL, never `process.cwd()` — the suite runs its fixtures out of
+// tmpdirs, so a relative path would resolve against the wrong tree.
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
+// Each fixture is seeded from KNOWN, LITERAL pre-reset content (name `vibe-starter`,
+// version `1.1.0`, a full CHANGELOG, a `# vibe-starter` README) rather than by copying
+// the live repo's own state files. That makes the suite self-contained: it asserts the
+// exact same outcome in this template AND in any repo generated from it that has
+// already run `npm run setup` (where those live files are already reset). The literals
+// below only need the fields the assertions touch.
 const PRE_RESET_PACKAGE = {
 	name: 'vibe-starter',
 	version: '1.1.0',
@@ -26,32 +29,21 @@ const PRE_RESET_PACKAGE = {
 	devDependencies: { vitest: '^4.0.0' },
 };
 
-const PRE_RESET_CONFIG = {
-	$schema: 'https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json',
-	'changelog-sections': [
-		{ type: 'feat', section: 'Added' },
-		{ type: 'fix', section: 'Fixed' },
-		{ type: 'perf', section: 'Changed' },
-		{ type: 'revert', section: 'Removed' },
-		{ type: 'deprecate', section: 'Deprecated' },
-		{ type: 'security', section: 'Security' },
-	],
-	packages: {
-		'.': {
-			'changelog-path': 'CHANGELOG.md',
-			'package-name': 'vibe-starter',
-			'release-type': 'node',
-		},
-	},
-};
-
-const PRE_RESET_CHANGELOG = `# Changelog
+// A SYNTHETIC stand-in for everything above the first `## ` heading, trailing blank
+// line included — deliberately shorter than the real intro so these cases pin the
+// TRANSFORMATION (truncate at the first entry, keep exactly one trailing blank line)
+// independently of the template's current prose. The real file's bytes — which are
+// what the release tooling configures as its changelog header — are pinned separately
+// by the `template's own CHANGELOG header` case below.
+const PRE_RESET_CHANGELOG_HEADER = `# Changelog
 
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-01-01
+`;
+
+const PRE_RESET_CHANGELOG = `${PRE_RESET_CHANGELOG_HEADER}## [1.1.0] - 2026-01-01
 
 ### Added
 
@@ -75,16 +67,8 @@ let fixtureRoot;
 beforeEach(() => {
 	fixtureRoot = mkdtempSync(join(tmpdir(), 'reset-release-state-'));
 	writeFileSync(
-		join(fixtureRoot, '.release-please-manifest.json'),
-		JSON.stringify(PRE_RESET_MANIFEST, null, '\t') + '\n'
-	);
-	writeFileSync(
 		join(fixtureRoot, 'package.json'),
 		JSON.stringify(PRE_RESET_PACKAGE, null, '\t') + '\n'
-	);
-	writeFileSync(
-		join(fixtureRoot, 'release-please-config.json'),
-		JSON.stringify(PRE_RESET_CONFIG, null, '\t') + '\n'
 	);
 	writeFileSync(join(fixtureRoot, 'CHANGELOG.md'), PRE_RESET_CHANGELOG);
 	writeFileSync(join(fixtureRoot, 'README.md'), PRE_RESET_README);
@@ -99,6 +83,22 @@ function readJson(file) {
 	return JSON.parse(readFileSync(join(fixtureRoot, file), 'utf8'));
 }
 
+/**
+ * Everything above the first `## ` heading, INCLUDING the blank line that separates
+ * it — i.e. the bytes `resetChangelog()` must emit, and the bytes the release tooling
+ * configures as its changelog header.
+ *
+ * No `## ` heading at all means the file is ALREADY the stub, so the whole file is
+ * the header block. That is not a broken CHANGELOG — it is the normal state of every
+ * repo generated from this template, where `npm run setup` has already truncated it.
+ * This file ships downstream and runs on every commit there (pre-commit → `npm test`),
+ * so that case must resolve to an expected value, never fail.
+ */
+function headerBlockOf(changelog) {
+	const firstEntry = changelog.indexOf('\n## ');
+	return firstEntry === -1 ? changelog : changelog.slice(0, firstEntry + 1);
+}
+
 describe('resetReleaseState', () => {
 	it('resets the release-state files for a fresh downstream repo', () => {
 		const summary = resetReleaseState({
@@ -109,18 +109,9 @@ describe('resetReleaseState', () => {
 
 		expect(summary.reset).toBe(true);
 
-		expect(readJson('.release-please-manifest.json')).toEqual({ '.': '0.0.0' });
-
 		const pkg = readJson('package.json');
 		expect(pkg.name).toBe('my-app');
 		expect(pkg.version).toBe('0.0.0');
-
-		const config = readJson('release-please-config.json');
-		expect(config.packages['.']).toMatchObject({
-			'include-component-in-tag': false,
-			'initial-version': '0.1.0',
-			'package-name': 'my-app',
-		});
 
 		const changelog = readFileSync(join(fixtureRoot, 'CHANGELOG.md'), 'utf8');
 		expect(changelog).not.toMatch(/^## \[/m);
@@ -209,7 +200,6 @@ describe('resetReleaseState', () => {
 
 		expect(summary.reset).toBe(false);
 		expect(readJson('package.json').name).toBe('vibe-starter');
-		expect(readJson('.release-please-manifest.json')).toEqual({ '.': '1.1.0' });
 	});
 
 	it('is a no-op when the chosen project name is still the template name', () => {
@@ -221,7 +211,9 @@ describe('resetReleaseState', () => {
 		});
 
 		expect(summary.reset).toBe(false);
-		expect(readJson('.release-please-manifest.json')).toEqual({ '.': '1.1.0' });
+		// The still-pre-reset version is the observable proof that the guard
+		// short-circuited before anything was rewritten.
+		expect(readJson('package.json').version).toBe('1.1.0');
 	});
 
 	it('preserves unrelated package.json fields and writes valid tab-indented JSON', () => {
@@ -249,16 +241,68 @@ describe('resetReleaseState', () => {
 		expect(pkgRaw).not.toMatch(/\n {2}"name"/);
 		expect(pkgRaw.endsWith('\n')).toBe(true);
 
-		// The release-please config keeps its top-level schema + sections untouched.
-		const config = readJson('release-please-config.json');
-		expect(config.$schema).toContain('release-please');
-		expect(config['changelog-sections']).toHaveLength(6);
-
-		// The CHANGELOG is exactly the title + intro paragraph, one trailing newline.
+		// The CHANGELOG is byte-for-byte the header block above the first `## ` heading,
+		// trailing blank line included — see PRE_RESET_CHANGELOG_HEADER for why exact.
 		const changelog = readFileSync(join(fixtureRoot, 'CHANGELOG.md'), 'utf8');
-		expect(changelog).toContain('The format is based on [Keep a Changelog]');
-		expect(changelog.endsWith('\n')).toBe(true);
-		expect(changelog.endsWith('\n\n')).toBe(false);
+		expect(changelog).toBe(PRE_RESET_CHANGELOG_HEADER);
+		// Asserted separately so the fixture itself can't silently lose that blank line.
+		expect(changelog.endsWith('.\n\n')).toBe(true);
+	});
+
+	it("emits a stub byte-identical to this repo's own CHANGELOG header block", () => {
+		// The cases above use a synthetic header, so they pin the transformation but not
+		// its coupling to reality. This one seeds the fixture with the LIVE CHANGELOG and
+		// asserts the emitted stub equals the live header block byte-for-byte, so a future
+		// edit to the intro prose cannot silently drift the two apart.
+		//
+		// In a repo generated from this template the live CHANGELOG is already the stub,
+		// so `headerBlockOf` returns the whole file and this degenerates into the same
+		// idempotence check as the case below — still a true statement, just a weaker one.
+		// The strong drift guard is what runs HERE, in the template.
+		const liveChangelog = readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8');
+		const liveHeader = headerBlockOf(liveChangelog);
+		writeFileSync(join(fixtureRoot, 'CHANGELOG.md'), liveChangelog);
+
+		resetReleaseState({
+			originUrl: 'git@github.com:acme/my-app.git',
+			projectName: 'my-app',
+			repoRoot: fixtureRoot,
+		});
+
+		const stub = readFileSync(join(fixtureRoot, 'CHANGELOG.md'), 'utf8');
+		expect(
+			stub,
+			[
+				"The downstream CHANGELOG stub drifted from this repo's own CHANGELOG header.",
+				"Those bytes are also the release tooling's configured changelog header",
+				"(`cliff.toml`'s `[changelog] header`): git-cliff `--prepend` `replacen`-s that",
+				'exact string out of the file before re-emitting it, so a one-byte difference',
+				'duplicates the header on the first release — in the template AND in every',
+				'downstream repo, where the stub is the whole file.',
+				'If you edited the CHANGELOG intro, copy the new bytes into `cliff.toml`;',
+				'if the stub is wrong, fix `resetChangelog()`.',
+			].join(' ')
+		).toBe(liveHeader);
+	});
+
+	it('re-emits an already-stubbed CHANGELOG byte-for-byte', () => {
+		// The state of a repo generated from this template: `npm run setup` already ran,
+		// so CHANGELOG.md IS the header stub and has no `## ` heading left. Running the
+		// reset again must return the identical bytes — anything else and the stub stops
+		// matching the release tooling's configured header the moment the reset is re-run.
+		// Seeded from the LIVE header so this case runs identically in the template and
+		// downstream; in the template it is the only case that exercises the no-`## `
+		// branch of `resetChangelog()`, which is the branch downstream repos always take.
+		const liveHeader = headerBlockOf(readFileSync(join(REPO_ROOT, 'CHANGELOG.md'), 'utf8'));
+		writeFileSync(join(fixtureRoot, 'CHANGELOG.md'), liveHeader);
+
+		resetReleaseState({
+			originUrl: 'git@github.com:acme/my-app.git',
+			projectName: 'my-app',
+			repoRoot: fixtureRoot,
+		});
+
+		expect(readFileSync(join(fixtureRoot, 'CHANGELOG.md'), 'utf8')).toBe(liveHeader);
 	});
 
 	it('runs as a CLI deriving repoRoot from its own location: node script.mjs <name> <origin>', () => {
@@ -277,7 +321,8 @@ describe('resetReleaseState', () => {
 			'git@github.com:acme/my-app.git',
 		]);
 
-		expect(readJson('package.json').name).toBe('my-app');
-		expect(readJson('.release-please-manifest.json')).toEqual({ '.': '0.0.0' });
+		const pkg = readJson('package.json');
+		expect(pkg.name).toBe('my-app');
+		expect(pkg.version).toBe('0.0.0');
 	});
 });

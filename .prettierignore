@@ -10,6 +10,13 @@ temp
 # Generated SQL migrations (drizzle-kit output; reformatting would diff vs the journal)
 src/db/migrations
 
+# Release changelog (generated; its header block is a byte-exact contract)
+# Prettier collapses a file's trailing newlines to one, which would eat the blank
+# line the release tooling's configured header ends with — in a downstream repo the
+# stub IS the whole file, so the header sits at EOF and the first release would
+# duplicate it. Also keeps Prettier off the generated entries on every release.
+CHANGELOG.md
+
 # Minified bundles
 *.min.js
 *.min.css
