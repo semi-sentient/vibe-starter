@@ -370,7 +370,7 @@ Two properties of the deployment make this non-optional rather than best practic
 
 Undoing a deploy means reverting the commit on `main` and letting both services redeploy from it (the operational steps are in [`DEPLOY.md`](../../DEPLOY.md)). That restores the **code**. It does not un-run a migration: the column added by the reverted commit is still there, the dropped one is still gone, and the backfill has already happened. A revert is therefore only a complete undo when the migration was expand-shaped — which is the real reason the rule above is a mandate.
 
-When a change has to alter data destructively anyway, the honest handling is to say so before merging and treat it as a one-way door: take a database backup first, keep the destructive step in its own migration and its own deploy so there is a clean commit to stop at, and never assume the revert covers it. An agent following the publish loop in `AGENTS.md` is required to surface this — "reverting this would not put the data back" — rather than quietly offering a rollback that only half works.
+When a change has to alter data destructively anyway, the honest handling is to say so before merging and treat it as a one-way door: take a database backup first, keep the destructive step in its own migration and its own deploy so there is a clean commit to stop at, and never assume the revert covers it. An agent following the publish loop in `docs/agents/shipping.md` is required to surface this — "reverting this would not put the data back" — rather than quietly offering a rollback that only half works.
 
 ---
 
@@ -946,7 +946,7 @@ These double as (1) templates the agent copies for new tests, (2) living documen
 
 ### Conventions documentation
 
-The canonical testing rules live in the top-level topic doc `docs/agents/testing.md` (one of five canonical topic docs — `documentation`, `mcp-usage`, `react-patterns`, `testing`, `ui-components`). The per-side docs at `src/server/docs/agents/testing.md` and `src/web/docs/agents/testing.md` are thin quick-references that sit atop it ("read the canonical doc first") — they don't restate the harness rules, only the side-specific facts: factory location, naming, what to test, when to mock, how to write a new integration test. `src/server/AGENTS.md` references the conventions doc and the `tdd` skill from `skills-workflow`.
+The canonical testing rules live in the top-level topic doc `docs/agents/testing.md` (one of the canonical topic docs routed from `AGENTS.md`'s Topic Documentation table). The per-side docs at `src/server/docs/agents/testing.md` and `src/web/docs/agents/testing.md` are thin quick-references that sit atop it ("read the canonical doc first") — they don't restate the harness rules, only the side-specific facts: factory location, naming, what to test, when to mock, how to write a new integration test. `src/server/AGENTS.md` references the conventions doc and the `tdd` skill from `skills-workflow`.
 
 The split: the `tdd` skill provides the _workflow_ (red/green/refactor with vertical slices); the conventions doc provides the _project-specific patterns_; the anchor tests provide the _concrete examples_. The agent reads all three.
 
@@ -977,7 +977,7 @@ src/server/
       testing.md       # server-side quick-ref atop the canonical /docs/agents/testing.md
 ```
 
-(The five canonical topic docs — `documentation`, `mcp-usage`, `react-patterns`, `testing`, `ui-components` — live at the repo-root `docs/agents/`; the per-side `testing.md` shown above is the server quick-reference layered on the canonical one.)
+(The canonical topic docs live at the repo-root `docs/agents/`, routed from `AGENTS.md`'s Topic Documentation table; the per-side `testing.md` shown above is the server quick-reference layered on the canonical one.)
 
 ### Modules NOT tested in the starter
 

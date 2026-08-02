@@ -130,7 +130,7 @@ flowchart LR
 
 **Local:** `docker compose up` starts Postgres; `npm run dev` runs Vite (frontend) and Hono (backend) concurrently. Vite proxies `/api/*` to Hono. Stripe webhooks are forwarded to the local Hono server via the Stripe CLI.
 
-**Production:** GitHub Actions runs CI on every push and PR. A ruleset on `main` requires three of its checks to pass — build + tests, secret scan, and a Docker smoke test that boots the real images — before the branch moves. Railway watches `main` and deploys. Per-pull-request preview deployments are an opt-in Railway toggle, off unless the builder turns them on. Stripe sends live webhooks to the public Railway URL — payments need a public endpoint, which Railway provides in prod and the Stripe CLI provides in dev.
+**Production:** GitHub Actions runs CI on every push and PR. Two rulesets guard `main`: one refuses a force-push from anyone, and one requires three of those checks to pass — build + tests, secret scan, and a Docker smoke test that boots the real images — before the branch moves, with a bypass for the admin role so the local `npm run release` can push its version-bump commit. Railway watches `main` and deploys. Per-pull-request preview deployments are an opt-in Railway toggle, off unless the builder turns them on. Stripe sends live webhooks to the public Railway URL — payments need a public endpoint, which Railway provides in prod and the Stripe CLI provides in dev.
 
 For a deeper request-flow, auth-flow, and Stripe-webhook view, see `BACKEND_DESIGN.md`.
 
