@@ -4,9 +4,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Applies the GitHub-side settings this template depends on: the `main-required-checks`
- * branch ruleset (the three CI jobs that must be green before `main` moves) and the two
- * repository merge settings that keep the publish loop tidy.
+ * Applies the GitHub-side settings this template depends on: the `main-protection` branch
+ * ruleset (no force-pushing or deleting the default branch, no bypass for anyone), the
+ * `main-required-checks` ruleset (the three CI jobs that must be green before `main` moves,
+ * bypassable by an admin), and the two repository merge settings that keep the publish loop
+ * tidy.
  *
  * Runs in two modes. `auto` is the quiet one `bootstrap.sh` calls: anything missing —
  * no `gh`, not signed in, not an admin — is a one-line skip and exit 0, because setup
@@ -22,8 +24,22 @@ import { fileURLToPath } from 'node:url';
  * `process.stdout.write`; never `console.log` (`no-console`).
  */
 
-/** The ruleset this script owns, matched by name so re-runs update rather than duplicate. */
-export const RULESET_NAME = 'main-required-checks';
+/**
+ * The two rulesets this script owns, each matched by name so re-runs update rather than
+ * duplicate.
+ *
+ * **Two rulesets rather than one, because they need different bypass rules.** History
+ * destruction (force-push, deletion) must be bypassable by nobody — it is the one mistake a
+ * revert cannot undo. Required status checks have to be bypassable by an admin, or
+ * `npm run release` deadlocks: it pushes a version-bump commit and a tag straight to `main`,
+ * that commit has no check runs on it, and a checks ruleset with no bypass rejects the push
+ * with a pre-receive error. The accepted trade-off is that the CI gate is *advisory for the
+ * repository owner* — enforcement of "always ship through a green PR" lives in the agent
+ * contract in `docs/agents/shipping.md`, and the ruleset is the backstop against an accident, not against
+ * the admin.
+ */
+export const PROTECTION_RULESET_NAME = 'main-protection';
+export const REQUIRED_CHECKS_RULESET_NAME = 'main-required-checks';
 
 /**
  * The `ci.yml` job display names that become required status checks, byte-exact.
@@ -152,7 +168,7 @@ export function extractCiJobNames(workflowYaml) {
  * A `gh api` invocation that sends its JSON body on stdin.
  *
  * `--input -` rather than `-f`/`-F`: those flatten to string fields and cannot express the
- * nested arrays this ruleset needs. `{owner}` and `{repo}` are gh's own placeholders,
+ * nested arrays these rulesets need. `{owner}` and `{repo}` are gh's own placeholders,
  * filled from the repository of the working directory — which is why nothing here has to
  * gather the repo slug.
  */
@@ -161,24 +177,84 @@ function ghApiArgv(method, path) {
 }
 
 /**
- * The one ruleset this script installs: the three CI gates must pass before the default
- * branch moves, and nothing else.
+ * The `RepositoryRole` actor id of the **admin** role, measured rather than looked up.
  *
- * Deliberately absent, each a decision recorded in the plan rather than an oversight:
- * no `pull_request` rule (no forced review, no forced PR — a solo maintainer can still
- * push to `main`), and `strict_required_status_checks_policy: false` (a branch need not be
- * rebased onto the tip before merging, which would serialise every merge).
+ * Confirmed against a live repository by reading the bypass actor back through GraphQL's
+ * `repositoryRoleName`: 2 is maintain, 4 is write, 5 is admin, and ids 1 and 3 are refused
+ * outright with HTTP 422 `Actor base role does not have write permissions`. REST documents
+ * no mapping at all, and the ordering that circulates widely — "3 = Write, 4 = Maintain" —
+ * is simply wrong. Do not "fix" this constant from memory; change it only against a
+ * repository you have tested it on, because a wrong id either 422s the write or hands the
+ * bypass to the wrong people.
+ */
+const ADMIN_ROLE_ACTOR_ID = 5;
+
+/**
+ * Every ruleset here targets the default branch by GitHub's own alias rather than by the
+ * literal `main`, so the payload survives a repository whose default branch is named
+ * something else.
+ */
+function defaultBranchConditions() {
+	return { ref_name: { exclude: [], include: ['~DEFAULT_BRANCH'] } };
+}
+
+/**
+ * History protection on the default branch: it cannot be force-pushed or deleted, and
+ * **nobody** — admin included — can bypass that.
  *
- * `bypass_actors` is omitted: the REST API documents it as optional on both create and
- * update, and omitting it is how "nobody bypasses these checks" is expressed. See the
- * phase handoff for what could NOT be confirmed without a write — whether an update that
- * omits the key clears bypass actors somebody added by hand.
+ * This is the half of the split that is absolute, because it guards the one mistake that is
+ * not recoverable: a revert is itself revertible, a rewritten or deleted history is not.
+ * See {@link PROTECTION_RULESET_NAME} for why the checks live in a separate ruleset.
+ *
+ * The `deletion` rule is decorative and kept only for completeness — GitHub refuses to
+ * delete a repository's default branch before any ruleset is consulted, so it is
+ * `non_fast_forward` that is doing the work here.
+ */
+function protectionRuleset() {
+	return {
+		// Sent explicitly, and empty, on every write — see {@link requiredChecksRuleset}.
+		bypass_actors: [],
+		conditions: defaultBranchConditions(),
+		enforcement: 'active',
+		name: PROTECTION_RULESET_NAME,
+		rules: [{ type: 'deletion' }, { type: 'non_fast_forward' }],
+		target: 'branch',
+	};
+}
+
+/**
+ * The three CI gates must pass before the default branch moves, and nothing else.
+ *
+ * Deliberately absent, each a decision recorded in the plan rather than an oversight: no
+ * `pull_request` rule (no forced review, no forced PR), and
+ * `strict_required_status_checks_policy: false` (a branch need not be rebased onto the tip
+ * before merging, which would serialise every merge). Without a `pull_request` rule the
+ * checks gate *every* update to the default branch, a direct push as much as a merge — so
+ * the only person who can push to `main` by hand is one the bypass actor below covers.
+ *
+ * **`bypass_actors` is always sent, on create and on update alike.** A `PUT` that omits the
+ * key PRESERVES whatever is stored rather than clearing it (measured, not documented), so
+ * omitting it would silently keep bypass actors somebody added by hand — and, for
+ * {@link protectionRuleset}, would make its empty array a promise the script cannot keep.
+ * Sending the key every time is what makes these two payloads the whole truth about who
+ * bypasses what. Do not "simplify" either one away.
+ *
+ * `bypass_mode` is `always`, not `pull_request`: `pull_request` does not let a direct push
+ * through, which is the exact case this bypass exists for (`npm run release` pushes the
+ * version-bump commit and its tag straight to the default branch).
+ *
+ * Note when comparing against a `GET` of the stored ruleset: GitHub injects
+ * `do_not_enforce_on_create: false` into the stored `required_status_checks` parameters, so
+ * what comes back is not byte-identical to what goes out.
  */
 function requiredChecksRuleset() {
 	return {
-		conditions: { ref_name: { exclude: [], include: ['~DEFAULT_BRANCH'] } },
+		bypass_actors: [
+			{ actor_id: ADMIN_ROLE_ACTOR_ID, actor_type: 'RepositoryRole', bypass_mode: 'always' },
+		],
+		conditions: defaultBranchConditions(),
 		enforcement: 'active',
-		name: RULESET_NAME,
+		name: REQUIRED_CHECKS_RULESET_NAME,
 		rules: [
 			{
 				parameters: {
@@ -298,9 +374,9 @@ export function gatherSetupState({ mode, readFile, run }) {
 
 	// `includes_parents=false` is load-bearing, not tidiness. The endpoint defaults to
 	// TRUE and folds in org- and enterprise-level rulesets, which this script can neither
-	// own nor update: one of those named `main-required-checks` would match the upsert
-	// below, and its id would be spliced into the REPO-scoped update path — a 404 that
-	// fails the run and prints gh's complaint in the middle of `npm run setup`.
+	// own nor update: one of those sharing a name with a ruleset this script owns would
+	// match the upsert below, and its id would be spliced into the REPO-scoped update path —
+	// a 404 that fails the run and prints gh's complaint in the middle of `npm run setup`.
 	//
 	// Pagination is deliberately NOT handled, but the page is asked for at its maximum.
 	// `per_page=100` costs nothing and raises the default cap of 30 by 3.3×; `--paginate`
@@ -360,22 +436,42 @@ export function planGithubSetup(state) {
 		}
 	}
 
-	const existing = state.existingRulesets.find((ruleset) => ruleset.name === RULESET_NAME);
-	const rulesetPath = existing
-		? `/repos/{owner}/{repo}/rulesets/${existing.id}`
-		: '/repos/{owner}/{repo}/rulesets';
+	// Each ruleset is upserted independently, by its exact name: POST when this repository
+	// has none by that name, PUT to its id when it does. Independently, because the two can
+	// be at different stages — a repo set up before the split has `main-required-checks` and
+	// not `main-protection` — and because a name collision on one must not affect the other.
+	const upsertRuleset = (ruleset, { created, subject, updated }) => {
+		const existing = state.existingRulesets.find((entry) => entry.name === ruleset.name);
+		return {
+			argv: ghApiArgv(
+				existing ? 'PUT' : 'POST',
+				existing
+					? `/repos/{owner}/{repo}/rulesets/${existing.id}`
+					: '/repos/{owner}/{repo}/rulesets'
+			),
+			describe: existing ? updated : created,
+			stdin: JSON.stringify(ruleset),
+			subject,
+		};
+	};
 
 	return {
 		action: 'apply',
 		commands: [
-			{
-				argv: ghApiArgv(existing ? 'PUT' : 'POST', rulesetPath),
-				describe: existing
-					? `Updated the required checks on the default branch: ${GATE_CHECK_NAMES.join(', ')}.`
-					: `Required checks are now enforced on the default branch: ${GATE_CHECK_NAMES.join(', ')}.`,
-				stdin: JSON.stringify(requiredChecksRuleset()),
+			upsertRuleset(protectionRuleset(), {
+				created:
+					'The default branch can no longer be deleted or force-pushed, by anyone, ' +
+					'including you.',
+				subject: 'the force-push and deletion protection on the default branch',
+				updated:
+					'Updated the force-push and deletion protection on the default branch: no ' +
+					'one can bypass it, including you.',
+			}),
+			upsertRuleset(requiredChecksRuleset(), {
+				created: `Required checks are now enforced on the default branch: ${GATE_CHECK_NAMES.join(', ')}.`,
 				subject: 'the required checks on the default branch',
-			},
+				updated: `Updated the required checks on the default branch: ${GATE_CHECK_NAMES.join(', ')}.`,
+			}),
 			{
 				argv: ghApiArgv('PATCH', '/repos/{owner}/{repo}'),
 				describe:
@@ -385,9 +481,9 @@ export function planGithubSetup(state) {
 				subject: 'the repository merge settings',
 			},
 		],
-		reason: existing
-			? `updating the \`${RULESET_NAME}\` ruleset and the repository merge settings`
-			: `creating the \`${RULESET_NAME}\` ruleset and the repository merge settings`,
+		reason:
+			`applying the \`${PROTECTION_RULESET_NAME}\` and \`${REQUIRED_CHECKS_RULESET_NAME}\` ` +
+			'rulesets and the repository merge settings',
 	};
 }
 
@@ -399,10 +495,10 @@ export function planGithubSetup(state) {
  * a different resource, so pressing on applies whatever GitHub will accept and reports the
  * rest; stopping at the first failure would throw away changes that were never in doubt.
  * The concrete case: repository rulesets are a paid feature on private repositories, so on
- * the GitHub Free plan the ruleset write 403s while the merge-settings PATCH — which every
- * plan allows — would have succeeded. Ordering is left as the plan states it (the ruleset
- * is the headline change and is reported first); with failures no longer stopping the loop,
- * reordering would buy nothing. Nothing is half-applied in a confusing way: each command
+ * the GitHub Free plan both ruleset writes 403 while the merge-settings PATCH — which every
+ * plan allows — would have succeeded. Ordering is left as the plan states it (the rulesets
+ * are the headline change and are reported first); with failures no longer stopping the
+ * loop, reordering would buy nothing. Nothing is half-applied in a confusing way: each command
  * that succeeds prints its own line, each that fails is named, and re-running finishes the
  * job.
  *

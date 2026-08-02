@@ -48,6 +48,150 @@ describe('planRelease', () => {
 		);
 	});
 
+	it('refuses when a previous run committed and tagged but never pushed', () => {
+		// The state a ruleset-refused push leaves behind: `npm version` already wrote 1.4.0
+		// into package.json and the release commit is sitting on top, unpushed. Every other
+		// refusal reads this wrong — the bump is already applied, so `--bumped-version` finds
+		// nothing left to bump and the run would be told "no commits at all since the last
+		// release", which is both false and unactionable.
+		const plan = planRelease({
+			bumpedVersion: '1.4.0',
+			commitsSinceLastRelease: 0,
+			currentBranch: 'main',
+			currentVersion: '1.4.0',
+			defaultBranch: 'main',
+			headSubject: 'chore(release): v1.4.0',
+			isDirty: false,
+			isHeadPushed: false,
+			matchingTagsExist: true,
+		});
+
+		expect(plan.action).toBe('refuse');
+		expect(plan.reason).not.toContain('no commits at all');
+		// The way out, spelled exactly as `DEPLOY.md`'s recovery recipe spells it.
+		expect(plan.reason).toContain(
+			'git fetch origin && git reset --hard origin/main && git tag -d v1.4.0'
+		);
+		expect(plan.reason).toContain('discards uncommitted changes');
+	});
+
+	it('refuses the unpushed re-run on a first release instead of planning it again', () => {
+		// The worse half of the same bug, and the one no version comparison can catch: the
+		// first-release path seeds 0.1.0 without consulting `bumpedVersion` at all, so a
+		// re-run here would prepend a SECOND `## [0.1.0]` section to CHANGELOG.md and only
+		// then die inside `npm version`.
+		const plan = planRelease({
+			bumpedVersion: '',
+			currentBranch: 'main',
+			currentVersion: '0.1.0',
+			defaultBranch: 'main',
+			headSubject: 'chore(release): v0.1.0',
+			isDirty: false,
+			isHeadPushed: false,
+			matchingTagsExist: false,
+		});
+
+		expect(plan.action).toBe('refuse');
+		expect(plan.reason).toContain('git tag -d v0.1.0');
+		expect(plan.commands).toBeUndefined();
+	});
+
+	it('names the default branch it was given in the unpushed-release refusal', () => {
+		// Both halves of the recovery — the ref to reset onto and the branch that refused the
+		// push — are the repo's own default branch, not a hardcoded `main`.
+		const plan = planRelease({
+			bumpedVersion: '1.4.0',
+			currentBranch: 'trunk',
+			currentVersion: '1.4.0',
+			defaultBranch: 'trunk',
+			headSubject: 'chore(release): v1.4.0',
+			isDirty: false,
+			isHeadPushed: false,
+			matchingTagsExist: true,
+		});
+
+		expect(plan.action).toBe('refuse');
+		expect(plan.reason).toContain('origin/trunk');
+		expect(plan.reason).not.toContain('origin/main');
+	});
+
+	it('stays quiet after a release that pushed cleanly', () => {
+		// Identical HEAD and package.json — the only thing that differs from the refusal
+		// above is that `origin/main` now contains the commit, which is exactly what a
+		// successful push produces. Firing here would make every completed release look
+		// broken.
+		const plan = planRelease({
+			bumpedVersion: '1.4.0',
+			commitsSinceLastRelease: 0,
+			currentBranch: 'main',
+			currentVersion: '1.4.0',
+			defaultBranch: 'main',
+			headSubject: 'chore(release): v1.4.0',
+			isDirty: false,
+			isHeadPushed: true,
+			matchingTagsExist: true,
+		});
+
+		expect(plan.action).toBe('refuse');
+		expect(plan.reason).toBe('there are no commits at all since the last release');
+	});
+
+	it.each([
+		['an ordinary unpushed commit', 'feat: add a thing'],
+		['an older release commit whose bump is long since shipped', 'chore(release): v1.3.0'],
+	])('plans the release normally despite %s at HEAD', (_case, headSubject) => {
+		// The guard needs BOTH halves: a release-shaped subject and a version that matches
+		// what is already in `package.json`. Unpushed feature commits are the normal state of
+		// a release run, and an old release commit at HEAD with a newer package.json version
+		// is not a half-finished release.
+		const plan = planRelease({
+			bumpedVersion: 'v1.4.0',
+			currentBranch: 'main',
+			currentVersion: '1.3.2',
+			defaultBranch: 'main',
+			gitCliffArgv: [GIT_CLIFF],
+			headSubject,
+			isDirty: false,
+			isHeadPushed: false,
+			matchingTagsExist: true,
+		});
+
+		expect(plan.action).toBe('release');
+		expect(plan.version).toBe('1.4.0');
+	});
+
+	it('detects the release commit its own plan writes', () => {
+		// The coupling that holds the guard together: `RELEASE_COMMIT_SUBJECT_PATTERN` has to
+		// keep matching the `git commit -m` subject in the plan. Rather than restate the
+		// subject here, take it from a real plan and replay the state a failed push leaves —
+		// so a reworded commit subject fails this test instead of silently disarming the
+		// guard.
+		const plan = planRelease({
+			bumpedVersion: 'v1.4.0',
+			currentBranch: 'main',
+			currentVersion: '1.3.2',
+			defaultBranch: 'main',
+			isDirty: false,
+			matchingTagsExist: true,
+		});
+		const commit = plan.commands.find(({ argv }) => argv[0] === 'git' && argv[1] === 'commit');
+
+		const rerun = planRelease({
+			bumpedVersion: `v${plan.version}`,
+			currentBranch: 'main',
+			// What `npm version` and `git commit` between them left behind.
+			currentVersion: plan.version,
+			defaultBranch: 'main',
+			headSubject: commit.argv[3],
+			isDirty: false,
+			isHeadPushed: false,
+			matchingTagsExist: true,
+		});
+
+		expect(rerun.action).toBe('refuse');
+		expect(rerun.reason).toContain('git tag -d v1.4.0');
+	});
+
 	it('refuses with an empty-window reason when nothing at all has landed', () => {
 		const plan = planRelease({
 			bumpedVersion: '1.3.2',
@@ -182,7 +326,10 @@ describe('planRelease', () => {
 			{ argv: ['git', 'add', 'CHANGELOG.md', 'package.json', 'package-lock.json'] },
 			{ argv: ['git', 'commit', '-m', 'chore(release): v1.4.0'] },
 			{ argv: ['git', 'tag', '-a', 'v1.4.0', '-m', 'v1.4.0'] },
-			{ argv: ['git', 'push', '--follow-tags'] },
+			// `--atomic` before `--follow-tags`, and never one without the other: without it
+			// a ruleset that refuses the branch update still lets the tag through, publishing
+			// a tag on a commit no remote branch has (verified against a live repo).
+			{ argv: ['git', 'push', '--atomic', '--follow-tags'] },
 			{
 				argv: ['gh', 'release', 'create', 'v1.4.0', '--notes-file', '-'],
 				stdinFrom: 'notes',
@@ -244,7 +391,7 @@ describe('planRelease', () => {
 			['git', 'add', 'CHANGELOG.md', 'package.json', 'package-lock.json'],
 			['git', 'commit', '-m', 'chore(release): v0.1.0'],
 			['git', 'tag', '-a', 'v0.1.0', '-m', 'v0.1.0'],
-			['git', 'push', '--follow-tags'],
+			['git', 'push', '--atomic', '--follow-tags'],
 			['gh', 'release', 'create', 'v0.1.0', '--notes-file', '-'],
 		]);
 	});

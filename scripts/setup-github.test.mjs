@@ -12,7 +12,8 @@ import {
 	isGithubOrigin,
 	parseMode,
 	planGithubSetup,
-	RULESET_NAME,
+	PROTECTION_RULESET_NAME,
+	REQUIRED_CHECKS_RULESET_NAME,
 	runSetupCommands,
 } from './setup-github.mjs';
 
@@ -46,11 +47,31 @@ function isTemplateRepo() {
 /** Runs only in the template repo — see {@link isTemplateRepo}. */
 const itInTemplate = it.skipIf(!isTemplateRepo());
 
-// The ruleset body this script exists to install, spelled out rather than derived from the
-// module: three required status checks, nothing about reviews or pull requests, and
-// `~DEFAULT_BRANCH` so the payload survives a repo whose default branch is not `main`.
-// Written as the parsed object because JSON key order is not part of the contract.
-const EXPECTED_RULESET = {
+// The two ruleset bodies this script exists to install, spelled out rather than derived
+// from the module — both were verified against a live repository, and a test that rebuilt
+// them from the same helpers would assert nothing. `~DEFAULT_BRANCH` so each payload
+// survives a repo whose default branch is not `main`. Written as parsed objects because
+// JSON key order is not part of the contract.
+//
+// `bypass_actors` appears in BOTH, including the empty array, and that is the point of the
+// split: a `PUT` that omits the key preserves whatever is stored rather than clearing it,
+// so the empty array is the only way `main-protection` can promise nobody bypasses it.
+const EXPECTED_PROTECTION_RULESET = {
+	bypass_actors: [],
+	conditions: { ref_name: { exclude: [], include: ['~DEFAULT_BRANCH'] } },
+	enforcement: 'active',
+	name: 'main-protection',
+	rules: [{ type: 'deletion' }, { type: 'non_fast_forward' }],
+	target: 'branch',
+};
+
+// `actor_id: 5` is the admin RepositoryRole, confirmed against a live repo through GraphQL
+// `repositoryRoleName` (2 = maintain, 4 = write; 1 and 3 are refused with HTTP 422). The
+// "3 = Write, 4 = Maintain" ordering that circulates online is wrong. `bypass_mode` must be
+// `always`: `pull_request` does not let a direct push through, and a direct push — the
+// `npm run release` version-bump commit — is the whole reason this bypass exists.
+const EXPECTED_CHECKS_RULESET = {
+	bypass_actors: [{ actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' }],
 	conditions: { ref_name: { exclude: [], include: ['~DEFAULT_BRANCH'] } },
 	enforcement: 'active',
 	name: 'main-required-checks',
@@ -161,16 +182,16 @@ describe('planGithubSetup', () => {
 		expect(plan.reason).toContain('`Docker smoke`');
 	});
 
-	it('creates the ruleset and applies the merge settings when every rung is met', () => {
+	it('creates both rulesets and applies the merge settings when every rung is met', () => {
 		const plan = planGithubSetup(READY);
 
 		expect(plan.action).toBe('apply');
-		expect(plan.commands).toHaveLength(2);
+		expect(plan.commands).toHaveLength(3);
 
-		const [ruleset, settings] = plan.commands;
+		const [protection, checks, settings] = plan.commands;
 		// `{owner}`/`{repo}` are gh's own placeholders — it fills them from the repository
 		// of the current directory, so nothing has to gather the slug.
-		expect(ruleset.argv).toEqual([
+		const createArgv = [
 			'gh',
 			'api',
 			'--method',
@@ -178,8 +199,12 @@ describe('planGithubSetup', () => {
 			'/repos/{owner}/{repo}/rulesets',
 			'--input',
 			'-',
-		]);
-		expect(JSON.parse(ruleset.stdin)).toEqual(EXPECTED_RULESET);
+		];
+		expect(protection.argv).toEqual(createArgv);
+		expect(JSON.parse(protection.stdin)).toEqual(EXPECTED_PROTECTION_RULESET);
+
+		expect(checks.argv).toEqual(createArgv);
+		expect(JSON.parse(checks.stdin)).toEqual(EXPECTED_CHECKS_RULESET);
 
 		expect(settings.argv).toEqual([
 			'gh',
@@ -196,18 +221,29 @@ describe('planGithubSetup', () => {
 		});
 	});
 
-	it('updates the existing ruleset in place rather than creating a second one', () => {
+	it('updates both existing rulesets in place rather than creating second copies', () => {
 		const plan = planGithubSetup({
 			...READY,
 			existingRulesets: [
 				{ id: 111, name: 'some other ruleset' },
-				{ id: 4242, name: RULESET_NAME },
+				{ id: 4242, name: REQUIRED_CHECKS_RULESET_NAME },
+				{ id: 909, name: PROTECTION_RULESET_NAME },
 			],
 		});
 
 		expect(plan.action).toBe('apply');
-		const [ruleset] = plan.commands;
-		expect(ruleset.argv).toEqual([
+		const [protection, checks] = plan.commands;
+		// Each ruleset is matched by its OWN name, so the ids cannot be crossed over.
+		expect(protection.argv).toEqual([
+			'gh',
+			'api',
+			'--method',
+			'PUT',
+			'/repos/{owner}/{repo}/rulesets/909',
+			'--input',
+			'-',
+		]);
+		expect(checks.argv).toEqual([
 			'gh',
 			'api',
 			'--method',
@@ -216,10 +252,63 @@ describe('planGithubSetup', () => {
 			'--input',
 			'-',
 		]);
-		// Same body either way — only the verb and path change.
-		expect(JSON.parse(ruleset.stdin)).toEqual(EXPECTED_RULESET);
-		// Nothing in the plan may POST, or a re-run leaves two rulesets behind, both active.
+		// Same bodies either way — only the verb and path change.
+		expect(JSON.parse(protection.stdin)).toEqual(EXPECTED_PROTECTION_RULESET);
+		expect(JSON.parse(checks.stdin)).toEqual(EXPECTED_CHECKS_RULESET);
+		// Nothing in the plan may POST, or a re-run leaves duplicates behind, all active.
 		expect(plan.commands.flatMap((command) => command.argv)).not.toContain('POST');
+	});
+
+	// The two upserts are independent, so a half-configured repo gets a PUT and a POST in the
+	// same run rather than an all-or-nothing choice. The second case is the real one: every
+	// repository set up before the split has `main-required-checks` and no `main-protection`.
+	it.each([
+		{
+			existing: PROTECTION_RULESET_NAME,
+			expected: ['PUT', 'POST'],
+			state: 'only the protection ruleset exists yet',
+		},
+		{
+			existing: REQUIRED_CHECKS_RULESET_NAME,
+			expected: ['POST', 'PUT'],
+			state: 'only the required-checks ruleset exists yet',
+		},
+	])('upserts each ruleset on its own when $state', ({ existing, expected }) => {
+		const plan = planGithubSetup({ ...READY, existingRulesets: [{ id: 77, name: existing }] });
+
+		const [protection, checks] = plan.commands;
+		expect([protection.argv[3], checks.argv[3]]).toEqual(expected);
+		// The one that exists is updated by id; the other is created against the collection.
+		expect(
+			plan.commands.filter((command) =>
+				command.argv.includes('/repos/{owner}/{repo}/rulesets/77')
+			)
+		).toHaveLength(1);
+		expect(
+			plan.commands.filter((command) =>
+				command.argv.includes('/repos/{owner}/{repo}/rulesets')
+			)
+		).toHaveLength(1);
+	});
+
+	it('sends bypass_actors on every ruleset write, create and update alike', () => {
+		// A `PUT` that OMITS `bypass_actors` preserves the stored value instead of clearing
+		// it. Leave the key off `main-protection` and a bypass somebody added by hand
+		// survives every re-run — silently, since the script would report success.
+		for (const existingRulesets of [
+			[],
+			[
+				{ id: 909, name: PROTECTION_RULESET_NAME },
+				{ id: 4242, name: REQUIRED_CHECKS_RULESET_NAME },
+			],
+		]) {
+			const [protection, checks] = planGithubSetup({ ...READY, existingRulesets }).commands;
+
+			expect(JSON.parse(protection.stdin).bypass_actors).toEqual([]);
+			expect(JSON.parse(checks.stdin).bypass_actors).toEqual([
+				{ actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' },
+			]);
+		}
 	});
 
 	it('describes each change in one plain line', () => {
@@ -227,7 +316,7 @@ describe('planGithubSetup', () => {
 		// it can be asserted.
 		const plan = planGithubSetup(READY);
 
-		expect(plan.commands).toHaveLength(2);
+		expect(plan.commands).toHaveLength(3);
 		for (const command of plan.commands) {
 			expect(command.describe).toMatch(/^\S.*\S$/);
 			expect(command.describe).not.toContain('\n');
@@ -280,6 +369,8 @@ describe('runSetupCommands', () => {
 		// The `npm run setup` path. A wall of red from `gh` in the middle of bootstrap is a
 		// product failure for the non-technical user this template is for: `auto` mode exists
 		// so that everything unavailable in their environment degrades to one calm line.
+		// Rulesets are refused as a pair here, which is exactly how the Free-plan private repo
+		// behaves — they are one paid feature, not two.
 		const { commands } = planGithubSetup(READY);
 		const { run } = stubApplyRunner(['/rulesets']);
 
@@ -287,11 +378,12 @@ describe('runSetupCommands', () => {
 
 		expect(report.exitCode).toBe(0);
 		expect(report.stderr).toEqual([]);
-		// One line for the change that DID land, one for the one that did not — and nothing
+		// One line for the change that DID land, one for the ones that did not — and nothing
 		// of gh's own complaint, which is what `npm run setup:github` is for.
 		expect(report.stdout).toHaveLength(2);
-		expect(report.stdout[0]).toBe(commands[1].describe);
+		expect(report.stdout[0]).toBe(commands[2].describe);
 		expect(report.stdout[1]).toMatch(/^Skipping GitHub settings: /);
+		expect(report.stdout[1]).toContain('force-push');
 		expect(report.stdout[1]).toContain('required checks');
 		expect(report.stdout[1]).toContain('npm run setup:github');
 		expect(report.stdout.join('\n')).not.toContain(GH_REFUSAL);
@@ -308,11 +400,14 @@ describe('runSetupCommands', () => {
 
 		expect(report.exitCode).toBe(1);
 		expect(report.stderr.join('\n')).toContain(GH_REFUSAL);
+		expect(report.stderr.join('\n')).toContain(
+			'the force-push and deletion protection on the default branch'
+		);
 		expect(report.stderr.join('\n')).toContain('the required checks on the default branch');
 		// Which command died, so the failure can be reproduced by hand.
 		expect(report.stderr.join('\n')).toContain(commands[0].argv.join(' '));
 		// The change that DID land is still reported, on stdout, exactly as when it all works.
-		expect(report.stdout).toEqual([commands[1].describe]);
+		expect(report.stdout).toEqual([commands[2].describe]);
 		expect(report.stdout.some((line) => line.startsWith('Skipping'))).toBe(false);
 	});
 
@@ -327,12 +422,8 @@ describe('runSetupCommands', () => {
 			runSetupCommands({ commands, mode, run });
 		}
 
-		expect(calls.map((call) => call.command)).toEqual([
-			commands[0].argv.join(' '),
-			commands[1].argv.join(' '),
-			commands[0].argv.join(' '),
-			commands[1].argv.join(' '),
-		]);
+		const everyCommand = commands.map((command) => command.argv.join(' '));
+		expect(calls.map((call) => call.command)).toEqual([...everyCommand, ...everyCommand]);
 	});
 
 	it('names every refused change when nothing at all could be applied', () => {
@@ -622,7 +713,7 @@ describe('gatherSetupState', () => {
 		const state = gatherSetupState({ mode: 'auto', readFile: () => WORKFLOW, run });
 
 		expect(state.existingRulesets).toEqual([]);
-		expect(planGithubSetup(state).commands[0].argv).not.toContain(
+		expect(planGithubSetup(state).commands.flatMap((command) => command.argv)).not.toContain(
 			'/repos/{owner}/{repo}/rulesets/undefined'
 		);
 	});
@@ -810,18 +901,20 @@ describe('the setup-github CLI', () => {
 
 		expect(result.stderr).toBe('');
 		expect(result.status).toBe(0);
-		expect(result.stdout.trimEnd().split('\n')).toHaveLength(2);
+		expect(result.stdout.trimEnd().split('\n')).toHaveLength(3);
 
 		const calls = readFileSync(join(sandbox, 'calls.txt'), 'utf8');
 		expect(calls).toContain('CALL api --method POST /repos/{owner}/{repo}/rulesets --input -');
 		expect(calls).toContain('CALL api --method PATCH /repos/{owner}/{repo} --input -');
-		// The bodies really arrive on stdin — the whole reason for `--input -`.
+		// The bodies really arrive on stdin — the whole reason for `--input -`. Two separate
+		// POSTs, so the rulesets are two resources on GitHub and not one merged payload.
 		const bodies = calls
 			.split('\n')
 			.filter((line) => line.startsWith('{'))
 			.map((line) => JSON.parse(line));
 		expect(bodies).toEqual([
-			EXPECTED_RULESET,
+			EXPECTED_PROTECTION_RULESET,
+			EXPECTED_CHECKS_RULESET,
 			{ allow_auto_merge: true, delete_branch_on_merge: true },
 		]);
 	});

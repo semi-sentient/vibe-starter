@@ -52,6 +52,24 @@ describe('<VersionStamp />', () => {
 		expect(await screen.findByText('v9.9.9')).toBeInTheDocument();
 	});
 
+	it('renders nothing when the resolved health response carries no version', async () => {
+		// The RPC response type is the union of the 200/503 branches, so a resolved
+		// response is not proof `version` is there. Without a guard on the field
+		// itself the stamp renders the literal `vundefined`.
+		server.use(
+			http.get('/api/health', () =>
+				HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok' })
+			)
+		);
+
+		renderWithQuery(<Probe />);
+
+		// Wait for a stamp that must never appear — the query has to settle into its
+		// success state before the assertion means anything.
+		await expect(screen.findByText(/^v/)).rejects.toThrow();
+		expect(screen.getByText('probe')).toBeInTheDocument();
+	});
+
 	it('renders nothing while the health query is still pending', () => {
 		// `delay('infinite')` keeps the query pending for the whole test, so nothing
 		// can resolve late and re-render outside `act`.

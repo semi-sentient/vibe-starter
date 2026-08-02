@@ -250,20 +250,30 @@ jobs:
                   printf '%s\n' "$html" | grep -F 'id="root"'
                   scripts=$(printf '%s\n' "$html" | grep -oE '(src|href)="[^"]+\.js"' | cut -d'"' -f2)
                   test -n "$scripts"
+                  verified=0
                   for src in $scripts; do
-                    # Only same-origin paths are ours to serve; prefixing the origin
-                    # onto an absolute or scheme-relative URL would build the nonsense
+                    # Same-origin absolutes are ours to serve just as much as
+                    # root-relative paths are — a Vite `base` of
+                    # `http://localhost:8080/` emits them — so strip the origin and
+                    # check them the same way. Only a genuinely different host is
+                    # skipped: prefixing the origin onto THAT would build the nonsense
                     # `http://localhost:8080/https://cdn…` and fail a healthy stack.
                     case "$src" in
+                      http://localhost:8080/*) src=${src#http://localhost:8080} ;;
+                      //localhost:8080/*) src=${src#//localhost:8080} ;;
                       http://* | https://* | //*) echo "skip: cross-origin script $src"; continue ;;
                     esac
                     url="http://localhost:8080/${src#/}"
                     ctype=$(curl -fsS -o /dev/null -w '%{content_type}' "$url")
                     case "$ctype" in
-                      application/javascript* | text/javascript*) echo "ok: $url ($ctype)" ;;
+                      application/javascript* | text/javascript*) echo "ok: $url ($ctype)"; verified=$((verified + 1)) ;;
                       *) echo "FAIL: script $url served as '$ctype', not JavaScript — the SPA fallback answered for a missing asset"; exit 1 ;;
                     esac
                   done
+                  # Every URL being skipped is not a pass: a page whose scripts all
+                  # point at another host would exit 0 having proven nothing about
+                  # what this stack serves. Require at least one real asset checked.
+                  test "$verified" -gt 0 || { echo "FAIL: verified 0 assets — every script URL on the page was skipped as cross-origin (see the 'skip:' lines above), so nothing this stack serves was actually checked"; exit 1; }
 
             # `test` and `grep` fail silently, so a red Assert step would otherwise
             # carry no explanation at all. Scoped to the Assert step by id — the two

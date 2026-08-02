@@ -51,6 +51,16 @@ export const RELEASABLE_TYPES = 'feat, fix, perf, revert, deprecate, security';
 const RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 
 /**
+ * Recognises the release commit this script itself writes, and captures its version.
+ *
+ * **Coupled to the `git commit -m` argv in {@link planRelease}** — the two must keep spelling
+ * the subject the same way or the already-bumped guard silently stops firing. The coupling
+ * test in `release.test.mjs` ("detects the release commit its own plan writes") feeds a
+ * planned subject straight back in, so the drift fails a test rather than a release.
+ */
+const RELEASE_COMMIT_SUBJECT_PATTERN = /^chore\(release\): v(\d+\.\d+\.\d+)$/;
+
+/**
  * Explain a no-bump window to a maintainer who cannot see git-cliff's filtering.
  *
  * "No releasable commits" reads as "nothing happened", which is wrong and confusing the
@@ -90,6 +100,37 @@ function unreadableTagsReason() {
 		'released and push it — `git tag -a v1.2.0 <commit> -m v1.2.0 && git push origin ' +
 		'v1.2.0` — then run `npm run release` again. If your tags already look like that, it ' +
 		'is the release tool itself that failed to start: run `npm install` and try again.'
+	);
+}
+
+/**
+ * Explain that the previous run got as far as committing and tagging, and then failed to push.
+ *
+ * The state is easy to reach — a ruleset on `main` refuses a commit that carries no check
+ * runs — and impossible to guess at from the other refusals: `package.json` already holds
+ * the new version, so the next run computes no bump and would otherwise be told, with total
+ * confidence, that there is "nothing to release". Worse on a first release, where the
+ * seeding path skips that comparison entirely and a re-run prepends a SECOND `## [0.1.0]`
+ * section to CHANGELOG.md before dying inside `npm version`.
+ *
+ * The undo is left to the invoker on purpose: `git reset --hard` throws work away, and this
+ * script has no business doing that on someone's behalf. The commands here are the same ones
+ * the recovery recipe in `DEPLOY.md` prints — keep the two identical.
+ *
+ * @param {string} version The version already committed, bare (`1.4.0`).
+ * @param {string} defaultBranch The branch the release was meant to land on.
+ * @returns {string} A refusal reason, plain-language and actionable.
+ */
+function unpushedReleaseReason(version, defaultBranch) {
+	return (
+		`v${version} was already prepared here and never reached the remote: \`HEAD\` is its ` +
+		`\`chore(release): v${version}\` commit, \`package.json\` is already at ${version}, and ` +
+		`none of it is on \`origin/${defaultBranch}\` — which is what a push refused by a branch ` +
+		'ruleset leaves behind. Re-running from here would write a second changelog section for ' +
+		'the same version, so nothing has been changed. Undo the half-finished release and start ' +
+		`over: \`git fetch origin && git reset --hard origin/${defaultBranch} && git tag -d ` +
+		`v${version}\`, then run \`npm run release\` again. \`git reset --hard\` discards ` +
+		'uncommitted changes, so stash anything you want to keep first.'
 	);
 }
 
@@ -180,8 +221,9 @@ export function resolveNpmArgv({ execPath, fileExists, npmExecPath, platform }) 
  * output. The returned `version` is always bare (`1.4.0`); the `v` is re-added per
  * command, since tags and the commit subject carry it but `npm version` must not.
  *
- * It refuses for five distinct reasons — dirty tree, wrong branch, nothing releasable,
- * tags that {@link unreadableTagsReason} explains, and a `version` that is not three plain
+ * It refuses for six distinct reasons — dirty tree, wrong branch, a previous run's release
+ * commit still sitting unpushed ({@link unpushedReleaseReason}), nothing releasable, tags
+ * that {@link unreadableTagsReason} explains, and a `version` that is not three plain
  * numbers. **The last two are the contract's own guards, not restatements of what the CLI
  * happens to gather:** this function is the only thing between an unusable version string
  * and a `git tag -a v…` / `npm version …` argument, and callers other than the CLI (its
@@ -204,7 +246,13 @@ export function resolveNpmArgv({ execPath, fileExists, npmExecPath, platform }) 
  *   plan so the executor stays dumb. Defaults to a bare `['git-cliff']`; the CLI passes
  *   `[node, <git-cliff>/lib/cli/cli.js]` — an argv, not a path, because on Windows only
  *   `node <shim>.js` is spawnable without a shell (see {@link resolveNpmArgv}).
+ * @param {string} [state.headSubject] Subject line of the `HEAD` commit, used together with
+ *   `isHeadPushed` to spot a previous run that committed and tagged but failed to push.
+ *   Defaults to `''`, which matches nothing.
  * @param {boolean} state.isDirty Whether the working tree has uncommitted changes.
+ * @param {boolean} [state.isHeadPushed] Whether `origin/<defaultBranch>` already contains
+ *   `HEAD`. Defaults to `true` — the value that keeps the unpushed-release guard quiet — so
+ *   a caller that cannot answer never gets a refusal it did not ask for.
  * @param {boolean} state.matchingTagsExist Whether any `v[0-9]*` tag exists. `false`
  *   means this repo has never released, so the version is seeded at
  *   {@link FIRST_RELEASE_VERSION} instead of being bumped from inherited history. `true`
@@ -222,7 +270,9 @@ export function planRelease({
 	currentVersion,
 	defaultBranch,
 	gitCliffArgv = ['git-cliff'],
+	headSubject = '',
 	isDirty,
+	isHeadPushed = true,
 	matchingTagsExist,
 	npmArgv = ['npm'],
 }) {
@@ -233,6 +283,24 @@ export function planRelease({
 		return {
 			action: 'refuse',
 			reason: `the current branch is \`${currentBranch}\`, not the default branch \`${defaultBranch}\` — a release commit, tag and GitHub release must all land on \`${defaultBranch}\``,
+		};
+	}
+	// BEFORE the two version comparisons below, because in this state both of them answer
+	// wrongly: the bump has already been written to `package.json`, so a normal repo reports
+	// "nothing to release" and a first release sails past the comparison entirely.
+	//
+	// Two facts, both observable without the network and both produced by this script's own
+	// commands: `HEAD` is the `chore(release): vX.Y.Z` commit it writes, its version is the
+	// one `npm version` already put in `package.json`, and the remote-tracking branch does
+	// not contain it. A successful push moves `origin/<branch>` forward, so the third fact is
+	// false the moment the release lands — that is what keeps this from firing after every
+	// completed release. The local tag is not consulted: it adds no case these three miss,
+	// and asking the remote about it would need a network round trip.
+	const headReleaseVersion = RELEASE_COMMIT_SUBJECT_PATTERN.exec(headSubject)?.[1];
+	if (!isHeadPushed && headReleaseVersion === stripV(currentVersion)) {
+		return {
+			action: 'refuse',
+			reason: unpushedReleaseReason(headReleaseVersion, defaultBranch),
 		};
 	}
 	if (stripV(bumpedVersion) === stripV(currentVersion)) {
@@ -286,7 +354,12 @@ export function planRelease({
 			// which would leave the tag local while `gh release create` mints its own at
 			// the branch head.
 			{ argv: ['git', 'tag', '-a', tag, '-m', tag] },
-			{ argv: ['git', 'push', '--follow-tags'] },
+			// `--atomic` is load-bearing, not tidiness: verified against a live repo, a
+			// ruleset that refuses the branch update still lets `--follow-tags` land the TAG,
+			// publishing a `vX.Y.Z` that no remote branch contains — and the next release then
+			// measures from it and finds nothing to release. `--atomic` makes the pair one
+			// transaction: git reports `atomic transaction failed` and neither ref moves.
+			{ argv: ['git', 'push', '--atomic', '--follow-tags'] },
 			{ argv: ['gh', 'release', 'create', tag, '--notes-file', '-'], stdinFrom: 'notes' },
 		],
 		version,
@@ -366,12 +439,43 @@ if (import.meta.main) {
 		});
 	};
 
-	/** As {@link run}, but silent and an empty string instead of a throw on failure. */
+	// Escape hatch for the one thing `tryRun` hides: a git-cliff that failed for a reason
+	// other than unreadable tags (a corrupt `cliff.toml`, say) is otherwise reported as the
+	// tags refusal, which sends the reader off fixing tags that were never the problem.
+	// `Boolean(...)` rather than a presence check: shells that export `DEBUG=` or `DEBUG=0`
+	// unconditionally would otherwise turn the passthrough on for everyone.
+	const verbose = process.argv.includes('--verbose') || Boolean(process.env.DEBUG);
+
+	/**
+	 * As {@link run}, but silent and an empty string instead of a throw on failure. Under
+	 * `--verbose` (or a non-empty `DEBUG`) the swallowed stderr is re-emitted, because a non-zero
+	 * exit here is turned into a plain-language refusal that can only ever be a best guess
+	 * at which of several causes it was.
+	 */
 	const tryRun = ({ argv }) => {
 		try {
 			return run({ argv, quiet: true });
-		} catch {
+		} catch (error) {
+			if (verbose) {
+				process.stderr.write(
+					`\n> ${argv.join(' ')} failed:\n${error.stderr ?? error.message}\n`
+				);
+			}
 			return '';
+		}
+	};
+
+	/**
+	 * Whether a command exits zero, for the ones that answer with an exit code rather than
+	 * stdout (`git merge-base --is-ancestor`). Silent either way: a non-zero exit is the
+	 * answer, not a fault.
+	 */
+	const runSucceeds = ({ argv }) => {
+		try {
+			run({ argv, quiet: true });
+			return true;
+		} catch {
+			return false;
 		}
 	};
 
@@ -386,6 +490,15 @@ if (import.meta.main) {
 		tryRun({ argv: ['git', 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD'] })
 			.trim()
 			.replace(/^origin\//, '') || 'main';
+	const headSubject = run({ argv: ['git', 'log', '-1', '--pretty=%s'] }).trim();
+	// "Does the remote branch already contain HEAD?" — asked of the remote-TRACKING ref, so
+	// it costs no network and stays honest: a successful `git push` moves `origin/<branch>`
+	// forward, and a refused one leaves it where it was. `--is-ancestor` answers with its
+	// exit code, and also exits non-zero when `origin/<branch>` does not exist at all — a
+	// branch that has never been pushed, which is likewise "not pushed".
+	const isHeadPushed = runSucceeds({
+		argv: ['git', 'merge-base', '--is-ancestor', 'HEAD', `origin/${defaultBranch}`],
+	});
 	// A git GLOB, anchored to the whole refname by git — deliberately not `cliff.toml`'s
 	// `tag_pattern` regex, and deliberately LOOSER than it. The question here is "has this
 	// repo ever released?", not "can git-cliff bump from a tag?": `v1.2`, `v1.3.0-rc.1` and
@@ -422,7 +535,9 @@ if (import.meta.main) {
 		currentVersion,
 		defaultBranch,
 		gitCliffArgv,
+		headSubject,
 		isDirty,
+		isHeadPushed,
 		matchingTagsExist,
 		npmArgv,
 	});
