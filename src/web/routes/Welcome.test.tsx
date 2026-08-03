@@ -17,7 +17,11 @@ function renderWithQuery(ui: ReactElement) {
 
 describe('<Welcome />', () => {
 	it('renders the landing page and reflects a healthy API + database', async () => {
-		server.use(http.get('/api/health', () => HttpResponse.json({ db: 'up', status: 'ok' })));
+		server.use(
+			http.get('/api/health', () =>
+				HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok', version: '9.9.9' })
+			)
+		);
 
 		renderWithQuery(<Welcome />);
 
@@ -32,5 +36,17 @@ describe('<Welcome />', () => {
 		// (a regex) rather than an exact-text match, and expect both badges.
 		const connected = await screen.findAllByText(/connected/);
 		expect(connected).toHaveLength(2);
+	});
+
+	it('stamps the running version and SHA on the public landing page', async () => {
+		server.use(
+			http.get('/api/health', () =>
+				HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok', version: '9.9.9' })
+			)
+		);
+
+		renderWithQuery(<Welcome />);
+
+		expect(await screen.findByText('v9.9.9 (abcdef1)')).toBeInTheDocument();
 	});
 });

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { Logger } from 'pino';
+import pkg from '../../package.json';
 import { csrf } from '@/auth/csrf';
 import type { AuthUser } from '@/auth/types';
 import { db } from '@/db/client';
@@ -36,11 +37,20 @@ type AppContext = { Variables: { logger: Logger; user: AuthUser } };
  * `/health` below is served at `/api/health`. Because `/api` lives in the typed
  * route tree, the RPC client (`hc<AppType>`) is pointed at the ORIGIN, not `/api`.
  *
- * `/health` doubles as a DB liveness probe: it runs `SELECT 1` through the shared
- * Drizzle client. DB up → `200 { status: 'ok', db: 'up' }`; DB unreachable →
- * `503 { status: 'degraded', db: 'down' }` (the query error is swallowed — a 503
- * is the signal). Because a 503 is still a server response, the frontend treats
- * "got a response" as API-up and keys the Database badge off the `db` field.
+ * `/health` doubles as a DB liveness probe and a "what's live" stamp: it runs
+ * `SELECT 1` through the shared Drizzle client. DB up →
+ * `200 { db: 'up', sha, status: 'ok', version }`; DB unreachable →
+ * `503 { db: 'down', sha, status: 'degraded', version }` (the query error is
+ * swallowed — a 503 is the signal). Because a 503 is still a server response, the
+ * frontend treats "got a response" as API-up and keys the Database badge off `db`.
+ *
+ * `version`/`sha` are on BOTH branches deliberately: the Hono RPC `res.json()`
+ * type is the union of the two, so a field present on only one branch is not
+ * readable by the client without narrowing. Keep the shapes identical.
+ * - `version` — `package.json`'s version, BUNDLED at build time via a JSON import.
+ *   Never read from disk: the api runtime image contains no `package.json`.
+ * - `sha` — first 7 chars of `RAILWAY_GIT_COMMIT_SHA`, or `null` when unset
+ *   (local dev / plain `docker run`). Read per request, not at module scope.
  */
 const app = new Hono<AppContext>()
 	.basePath('/api')
@@ -56,11 +66,14 @@ const app = new Hono<AppContext>()
 	// request-code/verify), not here.
 	.use('*', csrf({ exemptPaths: CSRF_EXEMPT_PATHS }))
 	.get('/health', async (c) => {
+		// Truthiness, not `?.slice(...) ?? null`: dotenv turns a blank `.env` entry
+		// into `''`, which the optional zod string accepts — both mean "unknown".
+		const sha = env.RAILWAY_GIT_COMMIT_SHA ? env.RAILWAY_GIT_COMMIT_SHA.slice(0, 7) : null;
 		try {
 			await db.execute(sql`select 1`);
-			return c.json({ db: 'up', status: 'ok' }, 200);
+			return c.json({ db: 'up', sha, status: 'ok', version: pkg.version }, 200);
 		} catch {
-			return c.json({ db: 'down', status: 'degraded' }, 503);
+			return c.json({ db: 'down', sha, status: 'degraded', version: pkg.version }, 503);
 		}
 	})
 	// Magic-link auth, served under `/api/auth/*` (basePath + this mount).

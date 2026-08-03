@@ -4,6 +4,19 @@ This is the **go-live runbook** for getting the app onto [Railway](https://railw
 
 > **Scope.** The build artifacts (`docker/Dockerfile.api`, `docker/Dockerfile.web`, `docker/nginx.conf.template`, `railway.*.json`) are verified to build and run locally. Standing up the live Railway project, entering secrets, enabling PR previews, and registering the live Stripe webhook are **manual, human-in-the-loop** actions — they need a Railway account and live keys and are intentionally not automated. The full pre-launch hardening pass — the [Ready for real users?](#ready-for-real-users) checklist at the end of this file — is the gate you run once the wiring below is done (see also [Going to production](#going-to-production)).
 
+## Day one, in order
+
+Everything below is reference material you can dip into. This is the order to actually do it in — each step links to its section.
+
+1. **Get the app running on your own machine first** ([Quick Start](README.md#quick-start)). Nothing here is worth debugging remotely.
+2. **Provision the Railway project** — Postgres, the api service, the web service, and a public domain for the web service ([Provision the Railway project](#provision-the-railway-project)).
+3. **Set the environment variables** on both services ([Environment variables](#environment-variables)). The api refuses to boot if a required one is missing, on purpose.
+4. **Run `npm run setup:github` once**, from your machine, so `main` cannot be force-pushed and does not accept a merge until CI is green ([Branch protection](#branch-protection)).
+5. **Turn on Wait for CI** in each Railway service, so a red build never becomes a deploy ([Continuous deploy from `main`](#continuous-deploy-from-main)).
+6. **Publish for the first time** — merge a pull request into `main` and watch it go live. Before you invite anyone real, work through [Ready for real users?](#ready-for-real-users).
+
+Steps 4 and 5 are the pair that makes "merged" mean "safe to deploy". Do them before the first publish, not after.
+
 ## Architecture: one public origin
 
 The deployed app is **single-origin**. nginx (the web service) does two jobs:
@@ -70,19 +83,21 @@ Set these per service in Railway (Variables tab). The api service is validated a
 
 ### api service (runtime)
 
-| Variable                | Required | Notes                                                                                             |
-| ----------------------- | -------- | ------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`          | ✅       | Use Railway Postgres's **private** URL. Reference it as `${{Postgres.DATABASE_PRIVATE_URL}}`.     |
-| `APP_ORIGIN`            | ✅       | The web service's **public** origin, no trailing slash (e.g. `https://app.example.com`).          |
-| `SESSION_SECRET`        | ✅       | ≥32 chars. Generate with `openssl rand -base64 36`.                                               |
-| `STRIPE_SECRET_KEY`     | ✅       | **Live** key (`sk_live_…`) in production.                                                         |
-| `STRIPE_WEBHOOK_SECRET` | ✅       | The `whsec_…` from the **live** webhook endpoint you create below.                                |
-| `NODE_ENV`              | —        | Set to `production`. (`docker/Dockerfile.api` already defaults it; set it explicitly to be safe.) |
-| `ADMIN_EMAILS`          | —        | Bootstrap/break-glass: comma-separated emails that resolve to ≥ `admin` at login (never demoted). |
-|                         |          | Set once to mint the first admin, then invite the rest in-app (invites are durable). Blank is OK. |
-| `RESEND_API_KEY`        | —        | Sends magic-link emails. **Unset = login codes are printed to the server log** (fine for a demo,  |
-|                         |          | not for real users). Set a real key before launch.                                                |
-| `ANTHROPIC_API_KEY`     | —        | Unused by shipped code; a validated slot for builders adding AI features.                         |
+| Variable                 | Required | Notes                                                                                             |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`           | ✅       | Use Railway Postgres's **private** URL. Reference it as `${{Postgres.DATABASE_PRIVATE_URL}}`.     |
+| `APP_ORIGIN`             | ✅       | The web service's **public** origin, no trailing slash (e.g. `https://app.example.com`).          |
+| `SESSION_SECRET`         | ✅       | ≥32 chars. Generate with `openssl rand -base64 36`.                                               |
+| `STRIPE_SECRET_KEY`      | ✅       | **Live** key (`sk_live_…`) in production.                                                         |
+| `STRIPE_WEBHOOK_SECRET`  | ✅       | The `whsec_…` from the **live** webhook endpoint you create below.                                |
+| `NODE_ENV`               | —        | Set to `production`. (`docker/Dockerfile.api` already defaults it; set it explicitly to be safe.) |
+| `ADMIN_EMAILS`           | —        | Bootstrap/break-glass: comma-separated emails that resolve to ≥ `admin` at login (never demoted). |
+|                          |          | Set once to mint the first admin, then invite the rest in-app (invites are durable). Blank is OK. |
+| `RESEND_API_KEY`         | —        | Sends magic-link emails. **Unset = login codes are printed to the server log** (fine for a demo,  |
+|                          |          | not for real users). Set a real key before launch.                                                |
+| `ANTHROPIC_API_KEY`      | —        | Unused by shipped code; a validated slot for builders adding AI features.                         |
+| `RAILWAY_GIT_COMMIT_SHA` | —        | Set automatically by Railway — nothing to configure. `/api/health` reports its first 7 characters |
+|                          |          | as `sha`, so you can tell which commit is live. Absent locally, where `sha` is `null`.            |
 
 > `PORT`: not needed. The server listens on a fixed `3000` and the web service proxies to `${API_UPSTREAM}` (default `…:3000`). If you expose the api publicly on Railway anyway, Railway's edge maps the public port to the container's 3000.
 
@@ -98,16 +113,44 @@ Set these per service in Railway (Variables tab). The api service is validated a
 
 Railway's GitHub integration auto-deploys on push by default. Confirm in each service's **Settings → Deploy / Source**:
 
-- **Production branch = `main`.** Every merge to `main` triggers a build + deploy of that service (Railway only rebuilds a service when files in its build context change).
-- Keep **Wait for CI** on if you want Railway to hold the deploy until the GitHub Actions checks (lint, typecheck, tests, build — see `.github/workflows/ci.yml`) pass. Recommended, so a red build never reaches production.
+- **Production branch = `main`.** Every push to `main` builds and deploys **both** services, whether or not the commit touched the files that service is built from. Railway only narrows that down if you give the service a `watchPatterns` filter, and neither `railway.api.json` nor `railway.web.json` sets one — deliberately, because it is what keeps the api and the web service on the same commit, and that is exactly what the `sha` check in [Rollback](#rollback) relies on.
+- **Turn Wait for CI on.** Railway then holds the deploy until the commit's GitHub Actions checks pass, so a red build never reaches production. This is step 5 of [Day one](#day-one-in-order) and it is not optional in spirit — it is the other half of the required checks you set in [Branch protection](#branch-protection). The workflow (`.github/workflows/ci.yml`) runs four jobs: **Build & test** (typecheck, lint, the full Vitest suite against a real Postgres, then a production build), **Cross-platform build (…)** on Ubuntu, macOS and Windows, **Secret scan** (gitleaks over the full history), and **Docker smoke** (builds both Docker images, boots them against a real Postgres, and checks the app answers through nginx). The first, third and fourth are the ones `main` requires; the cross-platform legs are informational.
+    > ⚠️ **Watch your first deploy to see what Wait for CI actually waits for.** Railway describes it as waiting for the commit's checks, and we have not confirmed whether that means _every_ check suite on the commit — including the informational cross-platform legs — or only the ones your ruleset requires. If a deploy sits waiting on a check you did not expect to gate it, that is why. Recorded here as an open question rather than guessed at.
+
+## Rollback
+
+Something went out that should not have. The fix is to put `main` back to a good commit: Railway deploys from `main`, so both services follow it together.
+
+1. **Revert on a branch, then merge the PR.** `git revert <sha>` (or several), push the branch, let CI run, merge — the same route as any other change. Take that route because it is the right process, not because GitHub will stop you: a revert is a brand-new commit that has never had a check run on it, and reverting one commit out of a series can break the build in ways only CI catches, so the checks are what prove the revert itself is sound. (If you administer the repo, a direct push to `main` is not actually refused — the required checks carry an admin bypass, see [Branch protection](#branch-protection). Don't use it for this.) Just tell your agent "go back to the version before X" — the contract it follows is [`docs/agents/shipping.md`](docs/agents/shipping.md). Never force-push `main`: a revert is itself revertible, a rewritten history is not — and that one **is** refused, for everyone including you.
+2. **Confirm what is actually live.** `curl https://<your-domain>/api/health` — the `sha` field is the first 7 characters of the commit currently serving, and `version` is its `package.json` version. Do not trust the dashboard's green tick over that.
+
+**Manual fallback: redeploy an earlier build from the Railway dashboard.** Open the service → **Deployments**, find the last good one, and redeploy it. Two things to know before you rely on this:
+
+- **It is per service, and it is not atomic.** The api and the web service have separate deployment histories. Rolling one back leaves the other on the new code until you roll that one back too, and in between the two halves of your app disagree — a rebuilt front end talking to an older API, or the reverse. Reverting on `main` avoids this entirely, because both services rebuild from the same commit. Use the dashboard when git is not an option (a bad build you cannot reproduce, a deploy that never finished), not as the routine path.
+- **How far back the deployment history goes is a Railway retention/plan detail we have not verified.** Do not assume last week's build is still redeployable — check before you need it.
+
+**Rolling back code does not roll back your database.** A revert undoes source changes; it does not undo a migration that already ran, and a column that was dropped is not coming back. So if the change you are undoing included a database migration, say so and think before reverting — the rationale, and the expand-then-contract discipline that keeps migrations revert-safe, is in [`docs/design/BACKEND_DESIGN.md`](docs/design/BACKEND_DESIGN.md).
 
 ## PR preview environments
 
-Railway can spin up an ephemeral environment per pull request.
+**Opt-in, and off unless you turn them on.** Railway can give every open pull request its own throwaway copy of the app — both services, a fresh Postgres, its own URL — torn down when the PR closes or merges. That is genuinely useful for showing work-in-progress to someone who will never run it locally. It is also more moving parts and more money, and the publish loop this template ships does not depend on it: the local review your agent walks you through before every PR is the default review surface. Nothing in the repo enables previews; enable them when you want them and skip this section otherwise.
 
-- Enable **Settings → Environments → Enable PR environments** (or _PR deploys_) on the project. Each open PR gets its own copy of the services + a fresh Postgres, torn down when the PR closes/merges.
-- **Set the preview's `APP_ORIGIN` to the preview web URL.** Magic-link redirects and the CSRF Origin check are built from `APP_ORIGIN`; if it still points at production, login links in a preview will bounce to prod. Railway exposes the generated domain as a variable (e.g. `RAILWAY_PUBLIC_DOMAIN`) you can reference.
-- Previews should use **test-mode** Stripe keys and their **own** webhook endpoint (or skip Stripe). Don't point a preview at the live webhook.
+Enable at **project → Settings → Environments → Enable PR environments** (some plans call it _PR deploys_). Each open PR then gets its own copy of the services plus a fresh Postgres.
+
+**Make a preview configure itself, using reference variables.** A preview that still points at production is worse than no preview: `APP_ORIGIN` drives magic-link redirect URLs and the CSRF Origin check, so a preview inheriting the production value bounces every sign-in back to prod. Railway's `${{service.VARIABLE}}` references resolve per environment, so setting these two once makes every future preview correct with no further editing:
+
+- On the **api** service: `APP_ORIGIN=https://${{web.RAILWAY_PUBLIC_DOMAIN}}`
+- On the **web** service: `API_UPSTREAM=${{api.RAILWAY_PRIVATE_DOMAIN}}:3000`
+
+Substitute your own service names if you did not call them `api` and `web`. In production these resolve to the production values, so the same two settings serve both environments — there is no separate production copy to keep in sync.
+
+> ⚠️ **Never seal a variable the app needs in order to boot.** Railway lets you _seal_ a variable so its value can never be read back — not by you, not by the dashboard, not by the CLI. That is a one-way door: a sealed value cannot be copied into a new environment, so a preview can come up without it, and `src/env.ts` deliberately aborts the api's startup on any missing required var (`APP_ORIGIN`, `DATABASE_URL`, `SESSION_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`). Leave those unsealed.
+
+- **Leave Focused PR Environments off.** If Railway offers it, that setting deploys only the services a PR actually touched — which here means a front-end-only PR gets a preview with no api behind it, i.e. a blank page and failing `/api` calls. This app is two services behind one origin; a preview needs both.
+- **Every preview starts with an empty database.** Migrations run on api boot so the schema is correct, but there are no users, no orders and no admin. Sign in fresh — the 6-digit code prints to the preview api's logs unless that preview has its own `RESEND_API_KEY` — and set `ADMIN_EMAILS` on the preview if you need an admin account.
+- **Use test-mode Stripe keys and a separate webhook endpoint** (or skip Stripe in previews entirely). Never point a preview at the live webhook.
+
+> ⚠️ **Check whether PR environments exist on your Railway plan before planning around them.** Whether the Hobby tier includes them is not something we have verified; if the toggle is missing from Settings → Environments, that is the likely reason rather than anything in this repo.
 
 ## Resend: real sign-in (and contact) email
 
@@ -138,27 +181,61 @@ Railway gives each web service a `*.up.railway.app` domain that works out of the
 
 ## Branch protection
 
-Configure on GitHub (Settings → Branches → add a rule for `main`).
+One command, run from your machine:
 
-- **Multi-contributor repos:** require a PR, require the CI status checks to pass, and require **≥1 approving review** before merge. Optionally require branches be up to date and require linear history. This pairs with "Wait for CI" above so only green, reviewed code deploys.
-- **Solo / template use:** branch protection is optional — leave it off (or require just the status checks) so you're not blocked reviewing your own PRs. The repo is a starter; tighten this once a team forms.
+```sh
+npm run setup:github
+```
+
+It applies two GitHub **repository rulesets** to your default branch — `main-protection` and `main-required-checks` — plus two repository settings. `npm run setup` already tried to run it quietly during Quick Start, so if you had the [GitHub CLI](https://cli.github.com) installed, signed in, and admin access to the repo at that moment, it may already be done. Running it again is safe: each ruleset is matched by name and updated in place rather than stacked as a duplicate.
+
+**What it sets up:**
+
+- **`main` cannot be force-pushed** (`main-protection`), and **nobody can bypass that** — not a collaborator, not you. This is the half that is absolute, because it guards the one mistake a revert cannot undo. (The ruleset carries a deletion rule too, but that one is belt-and-braces: GitHub already refuses to delete a repository's default branch before any ruleset is consulted.)
+- **`main` will not accept a merge until CI is green** (`main-required-checks`) — specifically the `Build & test`, `Secret scan` and `Docker smoke` jobs. (Those three names are a contract shared with `.github/workflows/ci.yml`; the cross-platform legs stay informational and do not gate anything.) This one **is** bypassable, by the repo's admin role and only by it — see the bypass note below for why, and what it costs.
+- **Merged branches are deleted automatically** (`delete_branch_on_merge`), so your branch list stays short.
+- **Auto-merge becomes available** in the GitHub UI. That is a **human** convenience only — your agent still watches the checks and merges the PR itself, per [`docs/agents/shipping.md`](docs/agents/shipping.md). Don't write workflows that lean on it.
+
+**What it deliberately does not set up: no required reviews, and no "require a pull request".** This is a solo-builder template. Requiring an approving review on a one-person repo just blocks you from merging your own work — self-approval is theatre. And the pull-request rule would add little the checks don't already give you: with no pull-request rule in the way, the required checks gate **any** update to `main`, a direct push exactly as much as a merge, so for anyone without admin on the repo a commit cannot land until CI has gone green on it. Leaving the rule off keeps the ruleset to the one thing it is actually there for. Add both from GitHub's ruleset UI (Settings → Rules → Rulesets → `main-required-checks`) the day a second person joins — that is the moment they start earning their cost.
+
+**For you, though, the checks are a backstop rather than a wall.** `main-required-checks` lists the repository's **admin** role as a bypass actor, so an admin's direct push to `main` goes through even though the commit carries no check runs. That is not an oversight — it is what lets `npm run release` push a version-bump commit and its tag straight to `main` (see the note below) — but it does mean the honest statement is: the CI gate binds every collaborator, and for the repo owner it is advisory. What actually keeps your own work going through a green pull request is the agent contract in [`docs/agents/shipping.md`](docs/agents/shipping.md), not GitHub. The way to get something onto `main` in a hurry is still branch → push → let CI run → merge.
+
+What this buys you is narrower than it sounds, and worth being honest about: CI proves the app **builds, boots, and passes its tests**. It cannot see that a page looks wrong. That is what the local review before every publish is for.
+
+**It needs admin access to the repo.** Not `maintain` — admin. Rulesets and repository settings cannot be changed with anything less, so the script checks first and stops with a clear message rather than half-applying. A contributor working on a fork they administer will get the rulesets on their own fork, which is fine. (It is also why the checks ruleset can never lock anyone out of a repo they just created: the only person who can install it is an admin, and the admin is the one its bypass covers. `main-protection` bypasses nobody — but it only ever refuses force-pushes and deletion, which is not a thing you need to do to your own new repo.)
+
+**If it says GitHub would not apply the rulesets, the usual cause is the plan.** Repository rulesets are a paid feature on **private** repos — on GitHub Free both ruleset writes are refused. Inside `npm run setup` that is one calm line and an exit code of 0, and **the merge settings still get applied**, so a successful `npm run setup` does not by itself mean the rulesets are installed (check with `gh api /repos/{owner}/{repo}/rulesets`). Run `npm run setup:github` directly to see GitHub's own error. Your three options are: make the repo public, pay for a plan that includes rulesets, or carry on without them — everything else in this template works, you just don't get the force-push protection or the required-checks guarantee.
+
+**If you ever rename a CI job, re-run `npm run setup:github`.** A required check that names a job which no longer exists is accepted by GitHub and then waits forever, blocking every PR. The script refuses to apply anything at all when a gate name is missing from `ci.yml`, which catches the mistake in the safe direction — but it cannot fix a rename that is already live on GitHub. Fix the workflow, then re-run.
+
+**One honest caveat: the script owns the bypass lists, so it will overwrite yours.** Every run sends the bypass list for both rulesets explicitly — empty for `main-protection`, the admin role for `main-required-checks` — so a bypass actor you add by hand in GitHub's UI is removed the next time `npm run setup:github` runs. (Sending the list every time is deliberate: a `PUT` that omits it preserves whatever GitHub has stored, which would quietly turn `main-protection`'s "nobody bypasses this" into a promise the script could not keep.) If you want a different bypass arrangement, change it in `scripts/setup-github.mjs` rather than in the UI, or stop running the command.
+
+> **Why the required checks have an admin bypass: `npm run release`.** The release command builds a `chore(release): vX.Y.Z` commit on your machine and pushes it, with its annotated tag, straight to `main` — `git push --atomic --follow-tags`. That commit has never been through CI, so it carries no check runs, and a required-checks ruleset gates **every** update to the branch, a direct push exactly as much as a merge. Without a bypass GitHub refuses the push before the ref moves, with `GH013: Repository rule violations found for refs/heads/main` and `3 of 3 required status checks are expected`. That was measured on a live repository, not read off the documentation, and so was the fix: with the admin repository role listed as a bypass actor the same push succeeds. The mode matters — `always`, because `pull_request` mode does not admit a direct push at all.
+>
+> **The trade is real and worth stating plainly.** Handing the admin role a bypass makes the CI gate advisory for whoever administers the repo, and binding for everyone else. `main-protection` is where the absolute guarantee lives instead: no force-push, no branch deletion, no bypass for anybody. What keeps the owner's ordinary work going through a green pull request is the agent contract in [`docs/agents/shipping.md`](docs/agents/shipping.md) — the release push is the one direct push it sanctions.
+>
+> **Before you start, have Docker running and give it a few minutes.** The release commit goes through the `pre-commit` hook like any other, which runs the full `npm run build:validate` (typecheck → lint → the whole test suite, and the tests create and migrate a real Postgres database). It is the slowest part of a release by a wide margin, and it fails the commit if anything is red.
+>
+> **If the push is refused anyway** — you are not an admin on the repo, or the bypass has been edited away — the release has already written the `chore(release): vX.Y.Z` commit and its annotated tag on your machine, because the push is the last step before the GitHub release. **Do not simply run `npm run release` again:** it recognises that state and refuses, because re-running from there would prepend a second changelog section for the same version. Undo the half-finished release first, then retry: `git fetch origin && git reset --hard origin/main && git tag -d vX.Y.Z`, then `npm run release`. `git reset --hard` discards uncommitted changes, so stash anything you want to keep first.
+>
+> The tag stays local in that case, because the push is `--atomic`: the branch update and the tag land as one transaction, so a refused branch takes the tag down with it and git reports `atomic transaction failed`. That flag is load-bearing, and verified — without it, a branch ruleset (which never matches `refs/tags/*`) refuses the branch and the `vX.Y.Z` tag reaches GitHub anyway, leaving a published tag on a commit that is not on `main`, and the next release measures from it and finds nothing to release. If you are cleaning up after a run from before that flag, delete the remote copy too: `git push --delete origin vX.Y.Z`.
 
 ## Going to production
 
-The wiring above gets the app **deployed and reachable**. Two more one-time **dashboard/GitHub actions** finish the automation, and then the [Ready for real users?](#ready-for-real-users) checklist below is the gate that takes you from "it's live" to "it's safe for real customers."
+The wiring above gets the app **deployed and reachable**. Two more one-time steps — one command, one set of dashboard toggles — finish the automation, and then the [Ready for real users?](#ready-for-real-users) checklist below is the gate that takes you from "it's live" to "it's safe for real customers."
 
 One-time repo/dashboard settings to confirm:
 
-- **Enable "Allow GitHub Actions to create and approve pull requests."** GitHub → repo **Settings → Actions → General → Workflow permissions**. Without it, [release-please](https://github.com/googleapis/release-please) cannot open its release PR, so versioning + the changelog never get cut.
+- **Run `npm run setup:github` once.** It stops `main` being force-pushed or deleted, puts the required CI checks on it, and turns on auto-delete of merged branches — see [Branch protection](#branch-protection). Nothing in CI does this for you: it runs from your machine, under your own GitHub login.
 - **Auto-deploy and PR previews are dashboard toggles, not code.** Continuous deploy from `main` and per-PR preview environments are enabled in the Railway dashboard (see [Continuous deploy](#continuous-deploy-from-main) and [PR preview environments](#pr-preview-environments) above) — they're human-in-the-loop and aren't wired up by anything in the repo.
 
 ### Settings that don't travel via the template
 
-GitHub's **"Use this template"** copies **files only** — repo-level settings don't come along, so set these by hand on your new repo (one time each):
+GitHub's **"Use this template"** copies **files only** — repo-level settings don't come along, so they have to be applied to your new repo separately. `npm run setup:github` is what does that, and it covers every setting this template expects:
 
-- **Allow GitHub Actions to create and approve pull requests** — required so release-please can open its PR. This is the first bullet above; see it for the exact location.
-- **Branch protection** — not copied either. Decide per the [Branch protection](#branch-protection) section above (optional for solo/template use, recommended once a team forms).
-- **Auto-delete head branches** (`delete_branch_on_merge`) — GitHub → repo **Settings → General → Pull Requests → "Automatically delete head branches."** Keeps merged release-please and feature branches from piling up.
+- **Force-push protection on `main`** — the `main-protection` ruleset, which nobody can bypass (see [Branch protection](#branch-protection)). There is no manual equivalent worth typing out; run the command.
+- **Required checks on `main`** — the `main-required-checks` ruleset, bypassable by the admin role so that `npm run release` can push (same section). Also no manual equivalent worth typing out.
+- **Auto-delete head branches** (`delete_branch_on_merge`) — applied by the same command, so there is normally nothing to do by hand. The manual path if you want it: GitHub → repo **Settings → General → Pull Requests → "Automatically delete head branches."** Keeps merged feature branches from piling up.
 
 ## Ready for real users?
 
@@ -227,12 +304,14 @@ docker run --rm -e DATABASE_URL=… -e APP_ORIGIN=http://localhost \
   -e SESSION_SECRET=$(openssl rand -base64 36) \
   -e STRIPE_SECRET_KEY=sk_test_x -e STRIPE_WEBHOOK_SECRET=whsec_x \
   -p 3000:3000 vibe-api
-curl localhost:3000/api/health      # → {"db":"up","status":"ok"}
+curl localhost:3000/api/health      # → {"db":"up","sha":null,"status":"ok","version":"<your package.json version>"}
 
 # web: build, then run — nginx serves the SPA and proxies /api to $API_UPSTREAM
 docker build -f docker/Dockerfile.web -t vibe-web .
 docker run --rm -e API_UPSTREAM=host.docker.internal:3000 -p 8080:80 vibe-web
 curl localhost:8080/                 # → index.html
 curl localhost:8080/login            # → index.html (SPA fallback)
-curl localhost:8080/api/health       # → proxied to the api → {"db":"up","status":"ok"}
+curl localhost:8080/api/health       # → proxied to the api → {"db":"up","sha":null,"status":"ok","version":"<your package.json version>"}
 ```
+
+`version` is the api's `package.json` version, bundled into the image at build time. `sha` is `null` here because Railway is what injects `RAILWAY_GIT_COMMIT_SHA`; on a real deploy it is the first 7 characters of the deployed commit, so `/api/health` tells you exactly what is live.

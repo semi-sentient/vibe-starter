@@ -7,6 +7,13 @@ on:
 
 jobs:
     build-and-test:
+        # REQUIRED-CHECK CONTRACT: this job's display name is referenced verbatim by
+        # the `main-required-checks` branch-protection ruleset. The three contract
+        # names are `Build & test`, `Secret scan` and `Docker smoke`; the setup
+        # script that applies the ruleset reads them back out of this file and
+        # refuses to point a required check at a name that isn't here. Renaming one
+        # of them without updating the ruleset leaves a required check that never
+        # runs — i.e. a permanently-blocked PR.
         name: Build & test
         runs-on: ubuntu-latest
 
@@ -111,6 +118,7 @@ jobs:
               run: npm run build
 
     gitleaks:
+        # REQUIRED-CHECK CONTRACT — see the note above `Build & test`.
         name: Secret scan
         runs-on: ubuntu-latest
 
@@ -125,3 +133,159 @@ jobs:
               uses: gitleaks/gitleaks-action@v3
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # Deployability gate: build-and-test proves the code compiles and its tests
+    # pass, which is not the same as "the images Railway builds actually boot".
+    # This job builds both production Dockerfiles and runs the real stack —
+    # Postgres + api (migrate, then serve) + nginx web — on a user-defined Docker
+    # network, then asserts through the web container's proxy. Container-to-
+    # container networking is deliberate: DEPLOY.md's local `host.docker.internal`
+    # recipe does not work between containers on a Linux runner.
+    docker-smoke:
+        # REQUIRED-CHECK CONTRACT — see the note above `Build & test`.
+        name: Docker smoke
+        runs-on: ubuntu-latest
+        # Both polls below are self-bounding (30 x 2s), so the only unbounded work
+        # is `docker build` and the base-image pulls. Locally, cold builds took
+        # ~3.5 min end to end; 20 minutes leaves ~5x headroom for a cold amd64
+        # runner with no layer cache (two full `npm ci` runs) while still failing a
+        # hung build in minutes rather than riding the 360-minute default on a
+        # required check.
+        timeout-minutes: 20
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            # Build context is `.` for both: the root .dockerignore is load-bearing
+            # (it keeps .env*, .git and node_modules out of the context).
+            - name: Build images
+              run: |
+                  docker build -f docker/Dockerfile.api -t vibe-api .
+                  docker build -f docker/Dockerfile.web -t vibe-web .
+
+            # The api's migrator has no retry loop, so it would race a cold Postgres.
+            # This mirrors the --health-cmd guard on build-and-test's service block
+            # and keeps "DB never came up" distinguishable from "migration failed".
+            - name: Start Postgres
+              run: |
+                  docker network create smoke
+                  docker run -d --network smoke --name pg \
+                    -e POSTGRES_DB=postgres \
+                    -e POSTGRES_PASSWORD=postgres \
+                    -e POSTGRES_USER=postgres \
+                    postgres:17
+                  # `-h 127.0.0.1` is load-bearing: it probes TCP :5432, which is what
+                  # the api actually dials. Without it pg_isready uses the unix socket
+                  # in /var/run/postgresql — which the entrypoint's temporary initdb
+                  # server (started with listen_addresses='') already answers on while
+                  # TCP is still closed, so the loop would break early and the api's
+                  # first connection would be refused, reporting a readiness race as a
+                  # migration failure.
+                  # `cmd && break` never aborts a loop under `bash -e`, so the
+                  # post-loop re-check below is the only thing that can fail this step.
+                  for i in $(seq 30); do docker exec pg pg_isready -h 127.0.0.1 -U postgres && break; sleep 2; done
+                  docker exec pg pg_isready -h 127.0.0.1 -U postgres || { echo "Postgres never became ready"; docker logs pg; exit 1; }
+
+            # `--name api` is load-bearing: the web image defaults API_UPSTREAM to
+            # `api:3000` and nginx resolves a static proxy_pass upstream once, at
+            # config load — so `api` must already be on the network when web starts.
+            # The api entrypoint migrates and only then serves; a failed migration
+            # exits non-zero, which surfaces as the health poll timing out below.
+            - name: Start api and web
+              run: |
+                  docker run -d --network smoke --name api \
+                    -e APP_ORIGIN=http://localhost:8080 \
+                    -e DATABASE_URL=postgresql://postgres:postgres@pg:5432/postgres \
+                    -e SESSION_SECRET=test_session_secret_0123456789_abcdefghijklmnop \
+                    -e STRIPE_SECRET_KEY=sk_test_dummy \
+                    -e STRIPE_WEBHOOK_SECRET=whsec_dummy \
+                    vibe-api
+                  docker run -d --network smoke --name web \
+                    -e API_UPSTREAM=api:3000 \
+                    -p 8080:80 \
+                    vibe-web
+
+            # Detached containers cannot fail a step by themselves; this poll plus
+            # its post-loop re-check is what turns a crashed api (bad migration, bad
+            # env) into a red job, with the logs and exit codes needed to tell which.
+            # Each diagnostic inside the `||` group is itself `|| true`: the group is
+            # the command following the final `||`, so `errexit` is live inside it and
+            # an unguarded `docker logs api` against a container that was never created
+            # would abort the group before the web logs, the exit codes and the
+            # `exit 1` — truncating the dump in exactly the case it is needed for.
+            - name: Wait for the stack
+              run: |
+                  for i in $(seq 30); do curl -fsS http://localhost:8080/api/health && break; sleep 2; done
+                  curl -fsS http://localhost:8080/api/health || { docker logs api || true; docker logs web || true; docker inspect api --format '{{.State.ExitCode}}' || true; docker inspect web --format '{{.State.ExitCode}}' || true; exit 1; }
+
+            # Every assertion is exit-code-bearing: `test` for the HTTP codes, grep
+            # for the body. `"version":"` proves the bundled package.json import
+            # survives into the runtime image, which has no package.json to read.
+            # `pipefail` so a failing curl can never be masked by a happy grep.
+            - name: Assert the stack serves
+              id: assert
+              run: |
+                  set -o pipefail
+                  test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/)" = 200
+                  test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/login)" = 200
+                  curl -fsS http://localhost:8080/api/health | grep -F '"db":"up"'
+                  curl -fsS http://localhost:8080/api/health | grep -F '"version":"'
+                  # Status codes alone cannot prove the SPA is usable. `try_files $uri
+                  # $uri/ /index.html` answers 200 with index.html for ANY path, so a
+                  # renamed/missing asset chunk or a wrong Vite `base` still returns
+                  # 200 for BOTH paths above AND for the asset itself — the status of
+                  # the script is not a check, the content-type is. So: require the
+                  # mount point in the shell, then follow every JS URL the shell
+                  # actually references (read from the response, never hardcoded — the
+                  # filenames are content-hashed) and require JavaScript back.
+                  # Both `src="….js"` (the entry <script>) and `href="….js"` are
+                  # collected: today the entry chunk IS the whole module graph, but the
+                  # first `React.lazy` route or `manualChunks` config makes Vite emit
+                  # split chunks as `<link rel="modulepreload" href="/assets/x.js">`,
+                  # and an src-only scan would score a selectively-missing chunk — i.e.
+                  # a blank page — green. CSS <link>s stay out of scope on purpose: a
+                  # missing stylesheet is an unstyled app, not a broken one.
+                  html=$(curl -fsS http://localhost:8080/)
+                  printf '%s\n' "$html" | grep -F 'id="root"'
+                  scripts=$(printf '%s\n' "$html" | grep -oE '(src|href)="[^"]+\.js"' | cut -d'"' -f2)
+                  test -n "$scripts"
+                  verified=0
+                  for src in $scripts; do
+                    # Same-origin absolutes are ours to serve just as much as
+                    # root-relative paths are — a Vite `base` of
+                    # `http://localhost:8080/` emits them — so strip the origin and
+                    # check them the same way. Only a genuinely different host is
+                    # skipped: prefixing the origin onto THAT would build the nonsense
+                    # `http://localhost:8080/https://cdn…` and fail a healthy stack.
+                    case "$src" in
+                      http://localhost:8080/*) src=${src#http://localhost:8080} ;;
+                      //localhost:8080/*) src=${src#//localhost:8080} ;;
+                      http://* | https://* | //*) echo "skip: cross-origin script $src"; continue ;;
+                    esac
+                    url="http://localhost:8080/${src#/}"
+                    ctype=$(curl -fsS -o /dev/null -w '%{content_type}' "$url")
+                    case "$ctype" in
+                      application/javascript* | text/javascript*) echo "ok: $url ($ctype)"; verified=$((verified + 1)) ;;
+                      *) echo "FAIL: script $url served as '$ctype', not JavaScript — the SPA fallback answered for a missing asset"; exit 1 ;;
+                    esac
+                  done
+                  # Every URL being skipped is not a pass: a page whose scripts all
+                  # point at another host would exit 0 having proven nothing about
+                  # what this stack serves. Require at least one real asset checked.
+                  test "$verified" -gt 0 || { echo "FAIL: verified 0 assets — every script URL on the page was skipped as cross-origin (see the 'skip:' lines above), so nothing this stack serves was actually checked"; exit 1; }
+
+            # `test` and `grep` fail silently, so a red Assert step would otherwise
+            # carry no explanation at all. Scoped to the Assert step by id — the two
+            # wait steps already dump their own, more specific diagnostics. Each
+            # command is `|| true` so one dead container cannot truncate the dump;
+            # this cannot mask a failure, since the job is already red when it runs.
+            - name: Diagnostics on assertion failure
+              if: failure() && steps.assert.outcome == 'failure'
+              run: |
+                  echo '--- GET / (headers + body) ---'
+                  curl -isS http://localhost:8080/ || true
+                  echo '--- docker logs api ---'
+                  docker logs api || true
+                  echo '--- docker logs web ---'
+                  docker logs web || true

@@ -351,6 +351,29 @@ Both produce safe code. Both have good migration stories. Either would work; Dri
 
 ---
 
+### Migration discipline: expand, then contract
+
+**Every migration must be safe to run against the currently-deployed code.** Write the expand half first and ship it on its own; only remove the old shape in a later, separate migration, once nothing reads it. Concretely:
+
+| Instead of…                          | Do this                                                                                                                |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `ALTER TABLE … RENAME COLUMN a TO b` | Add `b`, backfill it, dual-write both, switch reads to `b`, then drop `a` in a later migration.                        |
+| `ADD COLUMN x integer NOT NULL`      | Add it nullable or `NOT NULL DEFAULT <value>` — the running code does not know the column exists and cannot supply it. |
+| `DROP COLUMN` / `DROP TABLE`         | Stop reading it, ship that, confirm it is live, then drop.                                                             |
+| Changing a column's type in place    | Add the new column, backfill, cut over, drop the old one.                                                              |
+
+The illustrative migration shown earlier under **Why Postgres (not Redis-only)** — `src/db/migrations/0007_add_capacity_column.sql`, `ALTER TABLE services ADD COLUMN capacity integer NOT NULL DEFAULT 10`, a worked example rather than a file in this repo — is already expand-shaped, so this codifies the pattern rather than reversing it.
+
+Two properties of the deployment make this non-optional rather than best practice. The api container **migrates on boot, then serves** (`scripts/docker-entrypoint.sh`, which `docker/Dockerfile.api` copies into the image, runs the bundled migrator and only `exec`s the server if it exits 0), while Railway keeps the previous container taking traffic until the new one passes its health check — so there is always a window in which the **old code is running against the new schema**. A destructive migration breaks live requests inside that window. And migrations are **forward-only**: `drizzle-kit generate` emits an up-only `.sql` file, the runner replays pending files in journal order, and nothing in this starter runs a `down`.
+
+#### Code rollback is not data rollback
+
+Undoing a deploy means reverting the commit on `main` and letting both services redeploy from it (the operational steps are in [`DEPLOY.md`](../../DEPLOY.md)). That restores the **code**. It does not un-run a migration: the column added by the reverted commit is still there, the dropped one is still gone, and the backfill has already happened. A revert is therefore only a complete undo when the migration was expand-shaped — which is the real reason the rule above is a mandate.
+
+When a change has to alter data destructively anyway, the honest handling is to say so before merging and treat it as a one-way door: take a database backup first, keep the destructive step in its own migration and its own deploy so there is a clean commit to stop at, and never assume the revert covers it. An agent following the publish loop in `docs/agents/shipping.md` is required to surface this — "reverting this would not put the data back" — rather than quietly offering a rollback that only half works.
+
+---
+
 ## Auth + access control
 
 ### Decision
@@ -797,7 +820,7 @@ Vite exposes only `VITE_`-prefixed env vars to the browser bundle. The starter s
 
 ### Discipline
 
-A rule in AGENTS.md: every new env var updates `.env.example` AND the validation schema in the same change. This prevents drift between machines and CI.
+Every new env var updates three files in the same change: the zod schema (`src/env.ts`, or `src/env.client.ts` for `VITE_*`), `.env.example`, and `.env.test`. That rule lives in AGENTS.md; it prevents drift between machines and CI.
 
 ---
 
@@ -905,7 +928,7 @@ Per-test transactional rollback was rejected because Drizzle's `db.transaction()
 
 **4. Plain TS factories + `setupUsers()` helper.** `createUser({ role })` and `createOrder({ userId, ... })` in `src/server/test/factories/`. A `setupUsers()` helper composes them and returns `{ admin, user }` for the common case ("give me an admin and a regular user"). No factory library; the agent reads the function and uses it.
 
-**5. Test parallelism: serial.** `vitest.config.ts` runs everything in one forked process, one file at a time — `pool: 'forks'` with `fileParallelism: false` + `maxWorkers: 1` (Vitest 4 removed the old `poolOptions.singleFork`; these are the net-equivalent replacement). Required by the single-DB truncate strategy. Cost is negligible at prototype scale. Tests are split into two Vitest projects sharing this serial config: `server` (`node` environment, the DB-backed harness) and `web` (`happy-dom` environment, RTL + MSW).
+**5. Test parallelism: serial.** `vitest.config.ts` runs everything in one forked process, one file at a time — `pool: 'forks'` with `fileParallelism: false` + `maxWorkers: 1` (Vitest 4 removed the old `poolOptions.singleFork`; these are the net-equivalent replacement). Required by the single-DB truncate strategy. Cost is negligible at prototype scale. Tests are split into three Vitest projects sharing this serial config: `server` (`node` environment, the DB-backed harness), `web` (`happy-dom` environment, RTL + MSW), and `scripts` (`node` environment, the dependency-free repo tooling under `scripts/**/*.test.mjs` — no alias, no setup files, no database). The root `globalSetup` boots the test Postgres for every project, `scripts` included, so `npm test` needs the local DB up even for a scripts-only change.
 
 **6. Test file location.** Co-locate route tests next to the route file (`auth.routes.ts` + `auth.routes.test.ts`), matching the frontend convention. Cross-cutting tests (the access-control invariant, the full auth flow) live in `src/server/__tests__/`.
 
@@ -923,7 +946,7 @@ These double as (1) templates the agent copies for new tests, (2) living documen
 
 ### Conventions documentation
 
-The canonical testing rules live in the top-level topic doc `docs/agents/testing.md` (one of five canonical topic docs — `documentation`, `mcp-usage`, `react-patterns`, `testing`, `ui-components`). The per-side docs at `src/server/docs/agents/testing.md` and `src/web/docs/agents/testing.md` are thin quick-references that sit atop it ("read the canonical doc first") — they don't restate the harness rules, only the side-specific facts: factory location, naming, what to test, when to mock, how to write a new integration test. `src/server/AGENTS.md` references the conventions doc and the `tdd` skill from `skills-workflow`.
+The canonical testing rules live in the top-level topic doc `docs/agents/testing.md` (one of the canonical topic docs routed from `AGENTS.md`'s Topic Documentation table). The per-side docs at `src/server/docs/agents/testing.md` and `src/web/docs/agents/testing.md` are thin quick-references that sit atop it ("read the canonical doc first") — they don't restate the harness rules, only the side-specific facts: factory location, naming, what to test, when to mock, how to write a new integration test. `src/server/AGENTS.md` references the conventions doc and the `tdd` skill from `skills-workflow`.
 
 The split: the `tdd` skill provides the _workflow_ (red/green/refactor with vertical slices); the conventions doc provides the _project-specific patterns_; the anchor tests provide the _concrete examples_. The agent reads all three.
 
@@ -954,7 +977,7 @@ src/server/
       testing.md       # server-side quick-ref atop the canonical /docs/agents/testing.md
 ```
 
-(The five canonical topic docs — `documentation`, `mcp-usage`, `react-patterns`, `testing`, `ui-components` — live at the repo-root `docs/agents/`; the per-side `testing.md` shown above is the server quick-reference layered on the canonical one.)
+(The canonical topic docs live at the repo-root `docs/agents/`, routed from `AGENTS.md`'s Topic Documentation table; the per-side `testing.md` shown above is the server quick-reference layered on the canonical one.)
 
 ### Modules NOT tested in the starter
 

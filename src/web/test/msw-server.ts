@@ -13,7 +13,9 @@ import { setupServer } from 'msw/node';
  *   import { server } from '@/web/test/msw-server';
  *
  *   server.use(
- *     http.get('/api/health', () => HttpResponse.json({ db: 'up', status: 'ok' }))
+ *     http.get('/api/health', () =>
+ *       HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok', version: '9.9.9' })
+ *     )
  *   );
  */
 export const server = setupServer();

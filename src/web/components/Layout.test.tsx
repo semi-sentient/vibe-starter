@@ -26,6 +26,9 @@ describe('<Layout />', () => {
 		server.use(
 			http.get('/api/auth/me', () =>
 				HttpResponse.json({ user: { email: 'her@example.com', id: 1, role: 'user' } })
+			),
+			http.get('/api/health', () =>
+				HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok', version: '9.9.9' })
 			)
 		);
 
@@ -39,6 +42,9 @@ describe('<Layout />', () => {
 		server.use(
 			http.get('/api/auth/me', () =>
 				HttpResponse.json({ user: { email: 'her@example.com', id: 1, role: 'user' } })
+			),
+			http.get('/api/health', () =>
+				HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok', version: '9.9.9' })
 			)
 		);
 
@@ -52,6 +58,9 @@ describe('<Layout />', () => {
 		server.use(
 			http.get('/api/auth/me', () =>
 				HttpResponse.json({ user: { email: 'her@example.com', id: 1, role: 'user' } })
+			),
+			http.get('/api/health', () =>
+				HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok', version: '9.9.9' })
 			)
 		);
 
@@ -64,11 +73,29 @@ describe('<Layout />', () => {
 		server.use(
 			http.get('/api/auth/me', () =>
 				HttpResponse.json({ user: { email: 'her@example.com', id: 1, role: 'user' } })
+			),
+			http.get('/api/health', () =>
+				HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok', version: '9.9.9' })
 			)
 		);
 
 		renderLayout();
 
 		expect(await screen.findByText('Nothing here yet.')).toBeInTheDocument();
+	});
+
+	it('stamps the running version and SHA at the bottom of the shell', async () => {
+		server.use(
+			http.get('/api/auth/me', () =>
+				HttpResponse.json({ user: { email: 'her@example.com', id: 1, role: 'user' } })
+			),
+			http.get('/api/health', () =>
+				HttpResponse.json({ db: 'up', sha: 'abcdef1', status: 'ok', version: '9.9.9' })
+			)
+		);
+
+		renderLayout();
+
+		expect(await screen.findByText('v9.9.9 (abcdef1)')).toBeInTheDocument();
 	});
 });

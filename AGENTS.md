@@ -7,6 +7,8 @@
 3. Push back when you disagree. The agent (or engineer) is not a yes-machine.
 4. Prefer the boring, obvious solution. Cleverness is expensive.
 5. Touch only what you’re asked to touch.
+6. Never publish on inferred consent. The user's explicit go-ahead, every time — see [`docs/agents/shipping.md`](docs/agents/shipping.md) for the rest of the loop.
+7. Never commit to `main` directly. Branch, PR, green checks, merge — the sole sanctioned exception is `npm run release`'s own version-bump commit, explained in [`docs/agents/shipping.md`](docs/agents/shipping.md).
 
 ## Quality Expectations
 
@@ -22,7 +24,7 @@ Match explanations and questions to the user's demonstrated level — infer it f
 **Formatting** — Sort alphabetically: imports, exports, object keys, JSON keys, destructured props.
 **File Naming** — PascalCase (`UserSettings.tsx`) for components; camelCase with `use` prefix (`useUserSettings.ts`) for hooks; kebab-case (`date-formatters.ts`) for modules; tests add `.test` before extension.
 **TypeScript** — Never `any` (use `unknown`); `interface` > `type` for entities; `as const` > `enum`.
-**Environment Variables** — Env grows in lockstep: every new variable updates the zod schema in `src/env.ts` **and** `.env.example` in the same change (the schema makes config fail loudly; `.env.example` is the contract for the next dev). Read env via the validated `env` export, never `process.env` directly.
+**Environment Variables** — Env grows in lockstep. Every new env var updates three files in the same change: the zod schema (`src/env.ts`, or `src/env.client.ts` for `VITE_*`), `.env.example`, and `.env.test`. The schema makes config fail loudly at boot, `.env.example` is the contract for the next dev, and `.env.test` keeps the suite booting. In `.env.example` a platform-injected variable may ship **commented out** (as `RAILWAY_GIT_COMMIT_SHA` does) — documented there is what counts, not set there. Read env via the validated `env` export, never `process.env` directly.
 **Vendored Code** — Files emitted by an external CLI (notably shadcn/ui output under `src/web/components/ui/`) are third-party. Leave them as the tool generates them — they're exempt from the naming, alphabetical-ordering, return-type, and documentation conventions above, so the CLI can update them in place. Restyle via theme tokens (see `docs/agents/ui-components.md`); don't hand-edit.
 **Priority Order** — When guidelines conflict: 1. Type safety → 2. User experience → 3. Maintainability → 4. Test coverage → 5. Formatting
 
@@ -42,6 +44,7 @@ Before planning or writing code, check the table below. If your task matches a r
 | Styling, layout, theming, Tailwind/shadcn usage, or any component with JSX            | `docs/agents/ui-components.md`            |
 | Calling external APIs or using MCP server tools                                       | `docs/agents/mcp-usage.md`                |
 | Interviewing the user, asking clarifying questions, or any interactive skill          | `docs/agents/communicating-with-users.md` |
+| Publishing a change, cutting a release, rolling back, red CI, or Dependabot PRs       | `docs/agents/shipping.md`                 |
 
 ## Architecture & Locked Decisions
 

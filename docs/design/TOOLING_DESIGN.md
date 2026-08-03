@@ -1,6 +1,6 @@
 # Vibe Starter — Tooling Design
 
-> Strict TypeScript, zero-warning ESLint, Vitest with TDD, pre-commit gates, GitHub Actions CI, Railway deploy with PR previews. The agent is treated as a first-class user — `AGENTS.md` is the canonical context, the bundled skills pipeline is the recommended orchestration.
+> Strict TypeScript, zero-warning ESLint, Vitest with TDD, pre-commit gates, GitHub Actions CI, Railway deploy from `main` behind required checks, releases cut locally with `npm run release`. The agent is treated as a first-class user — `AGENTS.md` is the canonical context, the bundled skills pipeline is the recommended orchestration.
 
 This document covers static analysis, testing, CI/CD, repo bootstrap, and agent context. For project-level decisions, see [`PROJECT_DESIGN.md`](./PROJECT_DESIGN.md). For frontend, see [`FRONTEND_DESIGN.md`](./FRONTEND_DESIGN.md). For backend, see [`BACKEND_DESIGN.md`](./BACKEND_DESIGN.md).
 
@@ -24,8 +24,9 @@ This document covers static analysis, testing, CI/CD, repo bootstrap, and agent 
 | Pre-commit             | **Husky + lint-staged + gitleaks**                                                                                                                                                                                                              | Pre-commit hooks omitted                                  |
 | Pre-commit tests       | **`vitest --related --run`**                                                                                                                                                                                                                    | Full suite, no tests                                      |
 | CI                     | **GitHub Actions**                                                                                                                                                                                                                              | Railway built-in CI, CircleCI                             |
-| Deploy                 | **Railway GitHub integration + branch protection**                                                                                                                                                                                              | CI-orchestrated deploy                                    |
-| PR previews            | **Enabled**                                                                                                                                                                                                                                     | Disabled                                                  |
+| Deploy                 | **Railway GitHub integration + two `main` rulesets: `main-protection`, `main-required-checks`**                                                                                                                                                 | CI-orchestrated deploy                                    |
+| Releases               | **Local and agent-run (`npm run release`, git-cliff)**                                                                                                                                                                                          | A release bot opening a PR in CI                          |
+| PR previews            | **Opt-in** (Railway dashboard toggle, off by default)                                                                                                                                                                                           | Enabled by default                                        |
 | Agent context          | **`AGENTS.md` canonical + `CLAUDE.md` symlink**                                                                                                                                                                                                 | Tool-specific files maintained separately                 |
 | Skill orchestration    | **Bundled skills pipeline pre-installed** ([`semi-sentient/skills-workflow`](https://github.com/semi-sentient/skills-workflow)) — workflow: `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan` (`tdd` + `commit` run automatically) | None / leave to user                                      |
 | Distribution           | **GitHub template repo**                                                                                                                                                                                                                        | npm scaffold CLI                                          |
@@ -291,35 +292,47 @@ Pre-commit must be fast enough that the agent doesn't get stuck waiting. CI is t
 
 ### Decision
 
-**GitHub Actions** for CI. **Single workflow** on PR + push to `main`. **Railway's GitHub integration** for deploy, gated by **branch protection** on `main`. **PR preview environments** enabled by default.
+**GitHub Actions** for CI. **Single workflow** on PR + push to `main`, four jobs. **Railway's GitHub integration** for deploy, gated by **two repository rulesets** on the default branch: `main-protection` (no force-push, no deletion, bypassable by nobody) and `main-required-checks` (three of those jobs green, bypassable by the admin repository role and no one else). Nothing else is required: no review, no "require a pull request", no up-to-date branch. **No release automation in CI, anywhere.** **PR previews** are opt-in.
 
 ### Why
 
 ```mermaid
 flowchart LR
-  Dev[Builder] -->|push branch + PR| GitHub
+  Dev[Builder + agent] -->|local review, then branch + PR| GitHub
   GitHub -->|trigger| GHA[GitHub Actions CI]
-  GHA -->|typecheck<br/>lint<br/>test<br/>build| GHACheck{All green?}
-  GHACheck -->|yes| RailwayPR[Railway PR preview<br/>environment]
-  RailwayPR -->|preview URL on PR| Reviewer[Stakeholder review]
-  Reviewer -->|approve + merge| Main[main branch]
-  Main -->|branch protection<br/>required CI green| RailwayProd[Railway production deploy]
+  GHA -->|"Build &amp; test<br/>Secret scan<br/>Docker smoke"| Gate{All three green?}
+  GHA -.->|informational, not required| Matrix["Cross-platform build<br/>(ubuntu / macOS / windows)"]
+  Gate -->|no| Fix[Agent diagnoses<br/>and pushes a fix]
+  Fix --> GHA
+  Gate -->|yes| Merge[Agent merges the PR]
+  Merge -->|"main-required-checks<br/>lets the merge through"| Main[main branch]
+  Main -->|"push deploys;<br/>Wait for CI holds it"| RailwayProd[Railway production deploy]
   RailwayProd --> Live[Live app]
 ```
 
 **GitHub Actions** is the obvious choice — same auth as the repo, free at our scale, near-universal training data. It works with whatever repo collaborators the project has, with no special org setup required.
 
-**Single workflow** because prototype-scale repos don't have enough surface area to justify split workflows. ~50 lines of YAML running typecheck + lint + test + build in parallel jobs.
+**Single workflow** because prototype-scale repos don't have enough surface area to justify split workflows. One file, four jobs: `Build & test` (typecheck + lint + the DB-backed suite + build, against a Postgres service container), `Secret scan` (gitleaks over full history), `Docker smoke` (builds both production images and boots the real stack — Postgres + api + nginx — asserting through the proxy that the SPA and `/api/health` actually serve), and `Cross-platform build (<os>)` (a 3-OS matrix, informational). The first three are the required checks; the matrix is not, because a matrix leg's check name moves with the matrix.
 
-**Railway's GitHub integration** auto-deploys on push to `main`. Combined with branch protection requiring CI to pass, `main` only ever receives green commits — Railway's auto-deploy is safe. No deploy tokens for the builder to manage. Railway also gives the app a public URL, which Stripe webhooks need in production (in dev, the Stripe CLI forwards events — see `BACKEND_DESIGN.md`).
+**Railway's GitHub integration** auto-deploys on push to `main` — every connected service on every push, since neither `railway.*.json` sets a `watchPatterns` filter, which is what keeps the api and the web service on one commit. `main-required-checks` is what stops a pull request merging while any of the three checks is red, and Railway's **Wait for CI** toggle — recommended, and part of the day-one sequence in `DEPLOY.md` — holds the deploy until the checks report. Between them, what reaches production has compiled, passed its tests, and been proven to boot as a container. That is the honest limit of the claim: CI proves the app **builds, boots, and passes its tests**. It cannot see that a page looks wrong, and a bundle that loads and then throws at runtime is out of its reach too. Local review before the PR is what covers that, and it is deliberately step one of the publish loop in `docs/agents/shipping.md` — not an optional nicety. No deploy tokens for the builder to manage. Railway also gives the app a public URL, which Stripe webhooks need in production (in dev, the Stripe CLI forwards events — see `BACKEND_DESIGN.md`).
 
-**Branch protection** for repos that have multiple contributors: require PR before merge, require CI to pass, require ≥1 review. **For solo prototypes, branch protection can be disabled** — the starter docs explain when to enable it.
+**Branch protection, applied by a command rather than by hand.** `npm run setup:github` upserts both rulesets (each matched by name, so re-running updates instead of duplicating) and turns on auto-delete-merged-branches. It needs **admin** access on the repository — `MAINTAIN` cannot change these settings — and it refuses to apply anything unless all three job display names are actually present in `ci.yml`, because GitHub will wait forever for a required check that no job produces, which blocks every PR.
 
-**PR preview environments** (Railway feature) spin up an ephemeral deployment per PR. Stakeholders get a clickable link to see the WIP without anyone running it locally. Particularly valuable for a non-engineer builder demoing to a friend or early user.
+**Two rulesets rather than one, because the two halves need different bypass rules.** History destruction is absolute: `main-protection` (`non_fast_forward` + a decorative `deletion` rule — GitHub refuses to delete a default branch before rules are consulted anyway) ships with an empty bypass list, because a revert is revertible and a rewritten history is not. Required status checks cannot be absolute, because `npm run release` pushes a version-bump commit and its tag straight to `main` and that commit has no check runs on it; measured against a live repository, a checks ruleset with no bypass refuses that push pre-receive (`GH013 … 3 of 3 required status checks are expected`) and the ref does not move. So `main-required-checks` lists the **admin repository role** as a bypass actor, in `always` mode — `pull_request` mode was tried and does not admit a direct push.
+
+**The trade-off, recorded because it is a real weakening.** An admin bypass makes the CI gate _advisory for whoever administers the repository_ and binding for everyone else; the ruleset stops being a wall and becomes an accident backstop. That is accepted here on the grounds that the target repo is a solo builder's, that the enforcement which actually matters lives in the agent contract (`docs/agents/shipping.md`: every change but the release push goes through a branch and a green PR), and that the alternative — cutting releases through a PR — buys a round trip and a bot-shaped problem this template deleted on purpose (see [Why not release-please?](#why-not-release-please)). The absolute guarantee is not given up, only relocated: force-push protection bypasses nobody, including the admin.
+
+**The script owns both bypass lists and sends them on every write.** A `PUT` that omits `bypass_actors` preserves whatever GitHub has stored (measured, not documented), so omitting it would let a hand-added bypass survive silently and would make `main-protection`'s empty list a promise the script could not keep. The cost of sending it every time is the honest one to state: a bypass actor added by hand in the UI is overwritten on the next run.
+
+Two further caveats worth keeping: repository rulesets are a **paid feature on private repositories**, so on a private repo on the Free plan both ruleset writes are refused while the merge-settings change still lands — meaning `npm run setup` exiting 0 does **not** prove they were installed (check `gh api /repos/{owner}/{repo}/rulesets`); and the same script also enables GitHub's auto-merge **capability**, which is a human escape hatch in the UI, enabled on no PR by anything in this repo.
+
+**No required reviews** — and this is a choice, not an omission. The target user is a solo builder working with an agent; a required approval is a rule they can only satisfy by approving their own pull request. Self-approval is theatre that trains people to click through gates. The checks are what actually protect `main`. A team that wants reviews adds the rule in the GitHub UI: `setup:github` only ever touches the two rulesets it owns, each by name, so a third ruleset survives its re-runs.
+
+**PR previews** (a Railway feature) give each open pull request its own ephemeral deployment, and are **opt-in** — a dashboard toggle, off unless the builder turns it on. They are genuinely useful for showing work-in-progress to a friend or early user without anyone running it locally, but they are not part of the merge path: a preview is not a review gate, and the loop does not wait on one. They also cost money per open PR and need their own `APP_ORIGIN` and test-mode Stripe wiring to work at all, which is a poor default to hand a non-engineer. `DEPLOY.md` covers turning them on.
 
 ### Alternatives considered
 
-**CI-orchestrated deploy** (run Railway CLI from Actions). More control, more complexity, more credentials to manage. Rejected — the GitHub integration is simpler and equally safe given branch protection.
+**CI-orchestrated deploy** (run Railway CLI from Actions). More control, more complexity, more credentials to manage. Rejected — the GitHub integration is simpler and equally safe given the required-checks ruleset.
 
 **Railway's built-in CI.** Deploy-only, doesn't run tests. Not a substitute for GitHub Actions.
 
@@ -341,8 +354,9 @@ See `PROJECT_DESIGN.md` for the distribution decision rationale (template vs CLI
 
 1. **Copies `.env` from `.env.example`** if `.env` is absent.
 2. **Resolves a project name** — an explicit argument wins (`npm run setup -- my-app`), then an interactive prompt (`Project name [<dir>]:`, where an empty answer accepts the default), falling back to the repo directory name when running non-interactively.
-3. **Resets release state** by calling `node scripts/reset-release-state.mjs "$NAME" "$ORIGIN"` (see [Versioning automation](#versioning-automation)). The node module — not `sed` — owns the rewrite: it sets the release-please manifest to `0.0.0`, renames `package.json` (name + version → `0.0.0`), adds `initial-version: "0.1.0"` / `include-component-in-tag: false` / `package-name` to the release-please config, resets `CHANGELOG.md` to a header + intro stub, and rewrites the `README.md` H1 from `# vibe-starter` to the project name (the H1 only — other `vibe-starter` references, like the upstream CHANGELOG link, intentionally keep pointing at the template). Each rewrite is guarded, so the module **no-ops** on the upstream `semi-sentient/vibe-starter` origin, the `vibe-starter` name, or an already-renamed package — which is what keeps this template repo itself on its own version line.
+3. **Resets release state** by calling `node scripts/reset-release-state.mjs "$NAME" "$ORIGIN"` (see [Versioning automation](#versioning-automation)). The node module — not `sed` — owns the rewrite: it renames `package.json` (name + version → `0.0.0`), resets `CHANGELOG.md` to a header + intro stub, and rewrites the `README.md` H1 from `# vibe-starter` to the project name (the H1 only — other `vibe-starter` references, like the upstream CHANGELOG link, intentionally keep pointing at the template). That is the whole list: there is no release automation to reconfigure downstream, because none ships. The CHANGELOG stub must stay byte-identical to `cliff.toml`'s `[changelog] header`, trailing blank line included — `git-cliff --prepend` works by removing that exact string from the file and re-emitting it, so a one-byte drift duplicates the header on the first release (which is also why `CHANGELOG.md` is Prettier-ignored: Prettier collapses trailing newlines, and downstream the stub _is_ the whole file). Each rewrite is guarded, so the module **no-ops** on the upstream `semi-sentient/vibe-starter` origin, the `vibe-starter` name, or an already-renamed package — which is what keeps this template repo itself on its own version line.
 4. **Generates a strong `SESSION_SECRET`** in `.env` when the value is empty or still the legacy template placeholder; a real, user-set secret is left untouched, so re-running setup never rotates it (which would invalidate every live session). `.env.example` ships `SESSION_SECRET=` **empty on purpose** — any ≥32-char placeholder would be a usable weak default that signs cookies, so the example is blank and bootstrap fills it (or the boot-time check fails loudly).
+5. **Applies the GitHub settings** by calling `node scripts/setup-github.mjs` (see [CI/CD](#cicd)) — the `main-protection` and `main-required-checks` rulesets plus the repository merge settings. Applying a required-checks ruleset this early, possibly before the new repo has a commit CI has ever run on, is not the hazard it first looks like: the script refuses without **admin** access, so a non-admin never installs it at all, and whoever runs bootstrap on their own repo is an admin — which is exactly who the checks bypass covers. This runs in the script's quiet `auto` mode: no `gh`, no GitHub sign-in, a non-GitHub origin, no admin access, or a refusal from GitHub each produce **one calm line and exit 0**, because an optional step must never fail `npm run setup` in front of a non-engineer. `npm run setup:github` is the same code in `explicit` mode, where those states are loud, non-zero, and carry gh's own error text. The bootstrap call is additionally `|| true`, since the script runs under `set -euo pipefail`.
 
 Splitting the rewrite into a node module (rather than inline `sed`) keeps the JSON edits structured and the idempotency guards readable, and lets the bootstrap shell stay a thin orchestrator.
 
@@ -381,9 +395,9 @@ Maintaining six near-duplicate files invites drift. `AGENTS.md` is increasingly 
 
 ### What goes in `AGENTS.md`
 
-Apply one filter, borrowed from Addy Osmani's [AGENTS.md as a protocol file](https://addyosmani.com/blog/agents-md/): **can the agent discover this by reading the code?** If yes, leave it out. `AGENTS.md` is a protocol file — the minimum essential context the agent genuinely cannot derive from the repo itself. Stack declarations, directory tours, library do/don't lists, and architecture overviews belong in `/docs` (this design doc and its siblings) and `CONTEXT.md` (maintained by `grill-with-docs`), where they are loaded deliberately rather than re-read every turn. Task-scoped conventions sit one layer below that: `AGENTS.md` carries a "Topic Documentation" routing table that points the agent at `docs/agents/{documentation,mcp-usage,react-patterns,testing,ui-components}.md` — short, on-demand topic docs read only when the task matches the row, so the protocol file stays lean.
+Apply one filter, borrowed from Addy Osmani's [AGENTS.md as a protocol file](https://addyosmani.com/blog/agents-md/): **can the agent discover this by reading the code?** If yes, leave it out. `AGENTS.md` is a protocol file — the minimum essential context the agent genuinely cannot derive from the repo itself. Stack declarations, directory tours, library do/don't lists, and architecture overviews belong in `/docs` (this design doc and its siblings) and `CONTEXT.md` (maintained by `grill-with-docs`), where they are loaded deliberately rather than re-read every turn. Task-scoped conventions sit one layer below that: `AGENTS.md` carries a "Topic Documentation" routing table pointing at the short topic docs under `docs/agents/` — read only when the task matches the row, so the protocol file stays lean.
 
-The starter ships `AGENTS.md` with five short sections, each earning its place against the filter. `CLAUDE.md` is a symlink to `AGENTS.md` so Claude Code picks up the same content.
+The starter ships `AGENTS.md` with a handful of short sections, each earning its place against the filter. The five that carry the most weight: `CLAUDE.md` is a symlink to `AGENTS.md` so Claude Code picks up the same content.
 
 **1. Non-Negotiables.** Collaboration rules the agent cannot infer from code: surface assumptions, stop on conflicts, push back when you disagree, prefer the boring solution, touch only what was asked. About _how_ the agent behaves, not _what_ the codebase looks like.
 
@@ -440,7 +454,7 @@ Pre-installed skills:
 | `prd-to-plan`     | Breaks the PRD into tracer-bullet phases with confidence-scored acceptance criteria.                                                                                                                                               |
 | `run-plan`        | Executes the plan in a fresh conversation by delegating phases to specialized sub-agents.                                                                                                                                          |
 | `tdd`             | Red-green-refactor methodology. Never invoked directly — read by `write-a-prd` while authoring; every Code sub-agent spawned by `run-plan` is briefed to apply it; referenced by `AGENTS.md` for ad-hoc work outside the pipeline. |
-| `commit`          | Produces a Conventional Commits message from staged changes. Invoked automatically by `run-plan` after each phase; this feeds the `release-please` automation that maintains `CHANGELOG.md`.                                       |
+| `commit`          | Produces a Conventional Commits message from staged changes. Invoked automatically by `run-plan` after each phase; those messages are exactly what `npm run release` reads to build `CHANGELOG.md`.                                |
 
 The ideal workflow is `grill-with-docs` → `write-a-prd` → `prd-to-plan` → `run-plan`, with steps 1–3 in one conversation and step 4 in a fresh one. See [`semi-sentient/skills-workflow` docs/WORKFLOW.md](https://github.com/semi-sentient/skills-workflow/blob/main/docs/WORKFLOW.md) for the full walkthrough.
 
@@ -462,25 +476,48 @@ A few items resolved without dedicated sections:
 
 ## Versioning automation
 
-**`release-please`** as a GitHub Action watches conventional commits on `main` and opens a PR that bumps `package.json` version and updates `CHANGELOG.md`. Merging that PR cuts a tagged release.
+**`npm run release`** — a single local command, runnable by the agent, that cuts the whole release. Nothing runs in CI and no bot opens a pull request. `git-cliff` (configured by `cliff.toml`) reads the conventional commits since the last `vX.Y.Z` tag and works out the next version; `scripts/release.mjs` turns that into an ordered command plan and runs it under the invoker's own `git`/`gh` credentials.
 
 ```mermaid
 flowchart LR
-  Commits[Conventional commits<br/>on main] --> RP[release-please action]
-  RP --> RPPR[release-please PR<br/>bumps version<br/>updates CHANGELOG.md]
-  RPPR -->|merged| Tag[Tagged release<br/>vX.Y.Z]
-  Tag --> GH[GitHub release<br/>auto-created]
+  Commits[Conventional commits<br/>on main] --> Run["npm run release<br/>(local, agent-runnable)"]
+  Run --> Cliff[git-cliff computes the next<br/>version + the release notes]
+  Cliff --> Write["CHANGELOG.md section prepended<br/>package.json + lockfile bumped"]
+  Write --> Tag["chore(release): vX.Y.Z commit<br/>+ annotated tag vX.Y.Z"]
+  Tag -->|"git push --atomic --follow-tags"| GH[GitHub release published<br/>from the same notes]
 ```
 
-The CHANGELOG generated by release-please follows [Keep a Changelog](https://keepachangelog.com/) format — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` sections.
+The generated CHANGELOG follows [Keep a Changelog](https://keepachangelog.com/) format — `## [X.Y.Z] - YYYY-MM-DD` headings over `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` sections, mapped in `cliff.toml` from `feat`, `perf`, `deprecate`, `revert`, `fix` and `security` respectively. Every other conventional type (`chore`, `docs`, `build`, `ci`, …) is dropped by a trailing catch-all parser, so those never reach the changelog.
+
+Two consequences of that mapping worth stating plainly, because both look like bugs the first time:
+
+- **A window of nothing but `chore`/`docs`/Dependabot commits produces no release.** The command refuses and says so, naming the six types that would have counted. That is the intended policy — a version bump whose changelog would be empty tells a downstream reader nothing. Landing one commit of a listed type is the escape hatch.
+- **The notes are captured before anything is written.** The plan's first command is a read-only `git-cliff --strip all`; if it comes back with no content the run stops there, having changed no file, created no tag and pushed nothing. Every mutation is downstream of that check.
+
+`scripts/release.mjs` is a pure `planRelease()` decision core plus a thin CLI, mirroring the shape of the other `scripts/` modules — so the exact argv of every command in a release is asserted in tests without spawning anything. It refuses, rather than guessing, on: a dirty working tree, being on a branch other than the default one, nothing releasable in the window, version tags that exist but do not match `vX.Y.Z`, and a computed version that is not three plain numbers.
+
+**The release push goes straight to `main`, and the rulesets are shaped around that.** It was run against them: the release commit has no check runs on it, so a `main-required-checks` ruleset with no bypass refuses the push pre-receive and the branch never moves. The chosen remedy is the admin bypass on that ruleset — the reasoning, and what it costs, is in [CI/CD](#cicd) above; the operator-facing version, with the recovery recipe for a refused push, is in [`DEPLOY.md`](../../DEPLOY.md#branch-protection). Two details of the push itself belong here rather than there. First, the tag: `--follow-tags` alone is **not** atomic and a `target: branch` ruleset never matches `refs/tags/*`, so a refused branch update still publishes the `vX.Y.Z` tag — orphaning it on a commit no branch contains, which the next release then measures from and finds nothing to release. `git push --atomic --follow-tags` makes the pair one transaction (`atomic transaction failed`, neither ref moves), and that is why the flag is in the plan. Second, the release push is the **only** direct push to `main` this template sanctions; everything else, reverts included, goes through a branch and a green PR, which is enforced by the agent contract rather than by GitHub.
+
+### Why not release-please?
+
+The template's first version of this used [`release-please`](https://github.com/googleapis/release-please): a GitHub Action watching `main` that opened a release PR, which a maintainer merged to cut the tag. Every one of those four release PRs was merged by hand — auto-merge was never enabled on any of them — and that is the only reason the tags got cut at all. It was **removed rather than repaired**, because the one failure mode this repository did observe makes it unable to run unattended under required checks, and the obvious repair for that failure mode is closed off by documented GitHub behaviour:
+
+1. **Observed here: workflow runs on bot-authored PRs park in `action_required`.** GitHub holds them until a human clicks "Approve and run". Release PR #14's only check run was created at 14:07 and did not start until 20:14 — six hours parked; #8, #10 and #12 recorded no check runs, ever. Under a required-checks ruleset such a PR can never merge: the check it is blocked on never starts.
+2. **The repair that mode 1 points to — enable auto-merge and let the PR land itself — cannot work, because a push made with the default `GITHUB_TOKEN` does not re-trigger workflows.** GitHub suppresses those triggers deliberately, to prevent recursive runs. This was never hit in practice here: the human merges carried a human actor, so the release workflow did fire on each merge commit and each one was tagged. Auto-merged as designed, the same merges would have produced no follow-up run and no tag — unattended releases would have silently stopped happening.
+
+Both the parking and the suppression are fixable only by minting a PAT or a GitHub App token and storing it as a secret in every repo generated from the template — more setup friction than the release PR was ever worth, in a starter whose whole premise is that a non-engineer never has to touch repo settings. Deleting the machinery makes both cease to exist instead of being worked around: there is no bot PR left to park, and no `GITHUB_TOKEN` push left to suppress.
+
+**Why releases run locally.** `npm run release` executes as whoever invoked it: their push permission, their `gh` token. There is no bot identity, so nothing parks; there is no `GITHUB_TOKEN` push, so nothing is suppressed; and there is no per-repo secret for a downstream builder to provision. The cost is that a release becomes a deliberate act someone (or their agent) performs — which is the right shape here, since most repos generated from the template will never cut one, and the ones that do want to choose when.
+
+**Why merge commits stay.** No squash-only setting is applied anywhere, by `setup:github` or otherwise. Squash-merging rewrites a branch's individual commit messages into one subject taken from the PR title — and the changelog is built from those individual messages. The `run-plan` skill in particular writes non-conventional PR titles by design, so squashing would feed git-cliff a title that maps to nothing while discarding the `feat:`/`fix:` commits underneath it.
 
 ### Downstream reset
 
-A repo generated from this template starts its own version line at `0.1.0`, independent of whatever version the template itself is on. `npm run setup` (via `scripts/reset-release-state.mjs`, see [What the bootstrap step does](#what-the-bootstrap-step-does)) makes this happen by resetting `.release-please-manifest.json` to `0.0.0` and adding `"initial-version": "0.1.0"` (plus `"include-component-in-tag": false`, so tags are a plain `vX.Y.Z` rather than component-prefixed) to `release-please-config.json`. **The expected first downstream release is `0.1.0`.** The upstream template repo is unaffected — its own origin/name/package guards make the reset a no-op there, so it keeps advancing on its existing version line.
+A repo generated from this template starts its own version line at `0.1.0`, independent of whatever version the template itself is on. `npm run setup` (via `scripts/reset-release-state.mjs`, see [What the bootstrap step does](#what-the-bootstrap-step-does)) makes this happen by setting `package.json`'s version to `0.0.0` and truncating `CHANGELOG.md` to its intro stub. **The expected first downstream release is `0.1.0`.** The upstream template repo is unaffected — its own origin/name/package guards make the reset a no-op there, so it keeps advancing on its existing version line.
 
-Why `0.1.0`: a `0.0.0` manifest is release-please's "never released yet" sentinel. For `release-type: node`, the default first release from that sentinel is `1.0.0` (release-please's base-strategy default, which the node strategy does not override — verified against release-please v17.7.0 source; only the `python`/`rust`/`terraform-module` strategies default to `0.1.0`). So `initial-version: "0.1.0"` ([a real config-schema key](https://github.com/googleapis/release-please/blob/main/schemas/config.json)) is load-bearing: it pins the first release to `0.1.0` instead of letting it jump to `1.0.0`. (release-please's `docs/manifest-releaser.md` claims "0.1.0 for node", but that line is stale and contradicts the code — don't drop `initial-version` on its strength.)
+Why `0.1.0`: the seeding is a rule in `scripts/release.mjs`, not a config key anything can silently ignore. Before computing a bump the CLI asks `git tag -l 'v[0-9]*'` whether this repo has ever released; when nothing matches it skips git-cliff's bump entirely and releases `0.1.0`. That is what stops a fresh downstream repo from inheriting the template's version line out of the commit history it was copied with. Note the glob is deliberately **looser** than `cliff.toml`'s anchored `tag_pattern` (`^v[0-9]+\.[0-9]+\.[0-9]+$`): `v1.2`, `v1.3.0-rc.1` and `v2024.01` match the glob and not the pattern, and answering "never released" for those would regress a real project's version to `0.1.0`. They land instead as a refusal that says which tag shape to add.
 
-If the first release PR in a generated repo does _not_ come out as `0.1.0` (e.g. it comes out as `1.0.0`), the deterministic fallback is to add a `Release-As: 0.1.0` footer to a commit on that first release PR, which pins the release to `0.1.0`.
+There is no fallback footer to remember, because there is no release PR to correct. The run prints the version it settled on before the first command executes (`Releasing v0.1.0 (from 0.0.0)`), but it is **not** interactive and does not pause for a confirmation — what actually guards the first downstream release is the refusal set above, which turns every ambiguous tag state into a stop with an explanation rather than a guess. A version that did get pushed wrongly is fixed the ordinary way: correct the tags and release again.
 
 ---
 
@@ -493,6 +530,6 @@ The starter ships with a `TODO.md` listing items that must be completed before p
 - [ ] Verify Railway deploy works from a clone of the template
 - [ ] Write `DEPLOY.md` (the go-live runbook) and test it end-to-end on fresh Railway / Resend / Stripe accounts — including Resend sending-domain verification and the Stripe webhook signing secret. Same "High at launch" risk as the first-feature tutorial; annotate `.env.example` with where each value comes from while doing it
 - [ ] Sanity-check the `auth` skill content against the actual auth implementation (role model, `requireRole`, the `userId` ownership rule)
-- [ ] Verify `release-please` action is configured correctly and produces a 1.0.0 release
+- [ ] Verify the release path end to end: `npm run setup:github` installs both the `main-protection` and `main-required-checks` rulesets (confirm via `gh api /repos/{owner}/{repo}/rulesets` — exit 0 alone does not prove it), and `npm run release` cuts a tagged release with a correctly-prepended CHANGELOG section and a published GitHub release. The ruleset-versus-push half of this is already settled against a throwaway repo — the admin bypass lets the release push through, and `--atomic` keeps the tag with the branch — so what is left is one real run of the whole sequence
 
 `TODO.md` is removed (or reduced) once the starter is launched.

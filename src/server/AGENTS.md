@@ -16,4 +16,4 @@ Server code is the Hono app, DB schema/migrations, and the auth/payments modules
 
 - New behavior/bugfixes: red-green-refactor via the **tdd** skill.
 - Adding/reading user-owned rows: apply the ownership rule (404, never 403) — do not improvise it.
-- New env var: update the zod schema in `src/env.ts` **and** `.env.example` in the same change (see root `AGENTS.md`).
+- Every new env var updates three files in the same change: the zod schema (`src/env.ts`, or `src/env.client.ts` for `VITE_*`), `.env.example`, and `.env.test`. (Stated in full in the root `AGENTS.md`.)
