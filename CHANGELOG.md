@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The changelog is maintained automatically from the project's conventional commits.
 
+## [1.4.0] - 2026-08-03
+
+### Added
+
+- Add the local release flow (`npm run release`)
+- Report the running version and commit SHA from `/api/health`
+- Add a Docker smoke job proving the images actually boot
+- Add `setup:github` to apply the required-checks ruleset
+
+### Fixed
+
+- Split the ruleset in two and unblock the release push
+
 ## [1.3.2](https://github.com/semi-sentient/vibe-starter/compare/vibe-starter-v1.3.1...vibe-starter-v1.3.2) (2026-06-23)
 
 ### Fixed
