@@ -62,4 +62,3 @@ Read auth via the `useAuth()` hook (`user` with `user.role`, `login`, `logout`, 
 - Form (RHF + Zod + shadcn): the `Login` route
 - Context + custom hook: `AuthProvider` / `useAuth`
 - TanStack Query against the RPC client: the `Welcome` route
-  </content>
