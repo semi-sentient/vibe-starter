@@ -64,4 +64,3 @@ For mock/spy types use **Vitest 4** forms: `Mock<...>` and `MockInstance` — no
 - Component + form: `Login.test.tsx`
 - Route / API contract: `orders.routes.test.ts`
 - Module unit: `csrf.test.ts`
-  </content>

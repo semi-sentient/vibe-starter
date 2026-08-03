@@ -56,4 +56,3 @@ Default is utility classes — no stylesheet per component, so deleting a compon
 - **Don't add custom classes to `globals.css`** — it's for design-system tokens only (`@theme`, `:root`/`.dark`, the base layer). Loose global classes accumulate and orphan; that's what co-location avoids. A pattern shared across components becomes a shared component + `cva`, not a global class.
 
 (No plain global `*.css` per component — it leaks. No CSS-in-JS.)
-</content>

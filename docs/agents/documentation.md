@@ -51,4 +51,3 @@ export function initializeTheme(theme: Theme): void { ... }
 ## File-level headers
 
 Add a top-of-file comment (1-3 sentences) only when the file's role isn't obvious from its name (worker entry point, multi-subsystem wiring) or it embodies a non-trivial design decision worth flagging (e.g. why a module uses a manual ref pattern instead of `useState`).
-</content>
