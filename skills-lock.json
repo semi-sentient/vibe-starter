@@ -5,7 +5,7 @@
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/commit/SKILL.md",
-      "computedHash": "6490e1300431d3d4173bfbc9e174eb65c6b0434f4b5c3a52ed1568cd5f917e1c"
+      "computedHash": "37f2c768e9a0e1499f21aa6f2f25886ae3a61f39f0560f2c2cb471a63c8e9d49"
     },
     "grill-me": {
       "source": "semi-sentient/skills-workflow",
@@ -23,25 +23,25 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/productivity/handoff/SKILL.md",
-      "computedHash": "1a78d774f8a59db5daa6e65e20a6596872fa8cde769f9a6e3a09b678dd5ae8cc"
+      "computedHash": "20e5f4afdef502637510bc5c64d27645d3c85c88df9cb006824bbb0980166319"
     },
     "prd-to-plan": {
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/prd-to-plan/SKILL.md",
-      "computedHash": "58f45f7f9797743b5420ff3f6466bd7cb761c9f4b5b1641e094a1c5af7ba808d"
+      "computedHash": "7f16d82d0cebcbfd212f2139a92f8ce694892bcceacd0776a3cd919847b74b97"
     },
     "prototype": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/prototype/SKILL.md",
-      "computedHash": "e4d0c8f8cb3fc096ee99405a15491da466545cf4a3694bee5a0c9db2fa621a43"
+      "computedHash": "d3fc74689bd993e39c44bfae510d014eecffbeec2922764b065377fd1327c0f6"
     },
     "run-plan": {
       "source": "semi-sentient/skills-workflow",
       "sourceType": "github",
       "skillPath": ".agents/skills/run-plan/SKILL.md",
-      "computedHash": "3c37c34bcef89b80219e300879d2514eb191b51814b50b6614530b75e9ee4014"
+      "computedHash": "be58e2e8678c13e8a77fe6811ea139ac1e3185ece0ffa6e423afadecf826e496"
     },
     "tdd": {
       "source": "semi-sentient/skills-workflow",

@@ -1,6 +1,6 @@
 # Completion Templates
 
-Load this reference only at Step 5, when rendering the final completion table and composing the end-of-run summary comment and PR body. Contains the exact markdown templates.
+Load this reference only at Step 5, when rendering the final completion table and composing the end-of-run summary comment and PR body. Contains the exact markdown templates, plus the local-file-cleanup procedure Step 5e follows.
 
 (The active-time / token figures below come from the run ledger. On a host exposing no usage metadata, drop those figures — or label a wall-clock elapsed as approximate — per SKILL.md → Run Ledger → Host portability; the templates otherwise stand.)
 
@@ -18,7 +18,7 @@ The between-phase running table (SKILL.md → Progress Reporting) keeps one row 
 | 2 | Review | 124.6K | 44 | 0:16:52 |
 | 2 | Review (re-review 1) | 119.3K | 38 | 0:14:20 |
 | 2 | Review (re-review 2) | 120.2K | 41 | 0:14:02 |
-| 2 | *subtotal* — ✓ (↻ retried) | 939.2K | — | 2:41:12 |
+| 2 | *subtotal* — ✓ (↻ retry 2/2) | 939.2K | — | 2:41:12 |
 
 **Agent** is the mode plus a qualifier where one disambiguates (`Code (retry 1)`, `Research: <topic>`, `Debug`). Subtotal lines carry the phase's status flags from the running table; their Active time follows the parallel-group rule (max, with the Σ as a labeled aside). Include `setup`, `pre-PR` (Review), and `followup` groups where they occurred, and end with a **Totals** row summing the subtotal lines. The same rendered table is re-pasted verbatim into the PR body's collapsed "Run cost" section (template below).
 
@@ -166,8 +166,9 @@ Refs #<gh_issue_number> <!-- omit this line when <gh_issue_number> is unset (sta
 
 ## Review notes
 
-<!-- include this section ONLY when Step 5c.5 produced surviving findings -->
-- <finding — `file:line`, one-line description, CONFIRMED|PLAUSIBLE>
+<!-- include this section ONLY when Step 5c.5 produced surviving findings, or when Step 4 item 10 carried defects to the report route — tag each entry with its source -->
+- <finding — `file:line`, one-line description, CONFIRMED|PLAUSIBLE> <!-- branch review (Step 5c.5) -->
+- <carried defect — `file:line`, one-line description> <!-- carried, Step 4 item 10 -->
 
 <details>
 <summary>Run cost (per sub-agent)</summary>
@@ -212,3 +213,23 @@ Which failures can occur depends on the path taken (see the declaration gate in 
   ```
 
 The branch is already pushed before any of this runs, so all work is preserved on remote regardless of outcome.
+
+---
+
+## Local file cleanup (Step 5e)
+
+SKILL.md Step 5e gates this (GH mode; outcome `complete`; PR submitted successfully; no unresolved CONFIRMED Step 5c.5 finding) and routes here when all four conditions hold.
+
+Two exemptions override the deletions below; keep the file and say which exemption applied:
+
+- **Tracked** (`git ls-files --error-unmatch <path>` succeeds) — the file is part of the branch's committed history, whether committed by this run or tracked long before it. Removing it does not make it redundant: it leaves the tree contradicting HEAD, and a PR that adds a file the tree has deleted.
+- **Declared keep-dirty** — `<keep_dirty_pathspec>` means never staged, committed, or reverted by this run; deleting the file outright would be a stronger violation than any of those.
+
+1. **Delete the plan file:** `rm <plan_file_path>` (unless exempt per above)
+2. **Delete the upstream PRD file** if it is exempt from neither rule above, exists locally, and was published to GH:
+   - Derive the PRD path by swapping the suffix on the plan filename: `<slug>-plan.md` → `<slug>-prd.md` in the same directory
+   - If that file exists AND its content contains a `<!-- gh-issue: N -->` footer (proving it was published — local-only PRDs are kept as the audit trail) AND its content matches that issue's current GH body (`gh issue view <N> --json body --jq .body` — the PRD never syncs during a run, so any difference is local edits that exist nowhere else), `rm` it
+   - If any condition fails, leave it alone; on a content mismatch, say why: `PRD file kept — it carries local edits never pushed to GH issue #<N>.`
+3. **Note what was deleted and what was kept in the final summary** (e.g. `Local plan and PRD files removed — GH issues #<gh_issue_number>/#<plan_sub_issue_number> and PR are the canonical record.` — drop the `#<gh_issue_number>/` segment when no parent PRD-epic exists — or `Local plan file removed; PRD file kept (not published to GH).` / `…kept (tracked on this branch).`)
+
+Rationale: the GH issues hold the final checkbox state and the PR captures the work itself, so an untracked local copy is redundant. Re-runs that need the plan file can re-fetch from GH — Step 1b's "GH ref passed → not found → fetch" path handles that automatically.
